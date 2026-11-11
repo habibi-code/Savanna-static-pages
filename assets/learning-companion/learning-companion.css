@@ -26,7 +26,7 @@ button {
   font-weight: 650;
 }
 
-button::after {
+#toggle::after {
   content: '';
   width: .4rem;
   height: .4rem;
@@ -110,4 +110,13 @@ summary {
 
 #preview {
   overflow-wrap: anywhere;
+}
+
+#translation {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+button[aria-disabled="true"] {
+  cursor: progress;
 }

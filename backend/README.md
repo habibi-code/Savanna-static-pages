@@ -1,4 +1,58 @@
-# Phase 3A · Addis AI proof of concept
+# Savanna Addis AI backend
+
+## Live lesson translation
+
+Use Node.js 22.9 or later. Run these commands from the repository root in PowerShell:
+
+```powershell
+cd backend
+npm.cmd ci --ignore-scripts --no-audit --no-fund
+if (!(Test-Path -LiteralPath .env)) { Copy-Item .env.example .env }
+npm.cmd test
+npm.cmd start
+```
+
+The server binds to `127.0.0.1:3000` and serves the static pages and API together.
+Set `PORT` in `backend/.env` to change the port. A live translation requires
+`ADDIS_API_KEY` in that file; restart the server after editing it. With the key
+absent, opening pages, inspecting the preview, and testing the unavailable-service
+state are free. Startup and automated tests make zero paid requests.
+
+1. Open [the short lesson fixture](http://127.0.0.1:3000/tests/lesson-content.html).
+   Open **Learning companion**, select **Amharic**, and Tab to **Translate lesson**.
+   Use the browser Network panel to verify there are no translation requests yet.
+2. **After approving live spend**, press Enter on **Translate lesson**. This sends
+   the extracted title and body to Addis AI. Listen for the loading and completion
+   status. Focus stays on the button, and the Amharic text below can be read in browse mode.
+3. Switch the active lesson. The previous result clears. Activate the button to
+   translate the new lesson. Returning to a previously translated lesson and pressing
+   the button again uses the server cache while the entry is retained.
+4. Open [the Savanna lesson](http://127.0.0.1:3000/pages/concept-with-navigation.html)
+   to try the same control on the full lesson. Its longer text requires multiple
+   provider requests. The debug preview, the two demos, and Escape-to-close also
+   work with the API offline. To test an error for free, stop the server while the
+   page is open and activate the action. Restart it before a user-initiated retry.
+
+The browser posts JSON `{"text":"Check both time zones."}` to `/api/translate`.
+Success returns `{"translation":"…"}`; errors return a safe `error` string and
+an HTTP status. Requests accept at most 64 KiB of JSON and 16,000 UTF-16 code
+units of text. The backend splits long text into ordered sections of at most
+5,000 units with a 20-second SDK timeout per section and zero automatic retries.
+The local limit is eight POST requests per minute across all tabs. Concurrent
+identical sections share one in-flight call. The last 128 successful sections
+stay in process memory until eviction or restart. A failed section is eligible
+for manual retry. Dismissing an in-flight result can still incur charges for
+work already sent to the provider.
+
+The relative API URL uses the page's origin. There is no CORS setup for the
+bundled server. A separate development frontend should proxy `/api/translate`
+through its own trusted same-origin backend; direct cross-origin and `file://`
+API requests are unsupported. The local server checks Host and Origin, serves
+only public site paths, and omits keys, provider error bodies, and lesson text
+from logs. Any local process can call this endpoint. It is intended for local
+development; a shared deployment needs authentication and per-user spending limits.
+
+## Phase 3A CLI
 
 This server-side Node.js experiment uses the official `addisai` SDK with one English
 sentence from the weekly-schedule fixture, “Check both time zones.” The local CLI

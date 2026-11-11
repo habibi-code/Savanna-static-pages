@@ -2,11 +2,12 @@ import { createHash, randomUUID } from 'node:crypto';
 import { existsSync } from 'node:fs';
 import { mkdir, readFile, rename, unlink, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
+import { checkAmharic, translateEnglish, UserMessage } from './translation.js';
+export { UserMessage };
 
 // One sentence from the schedule example in tests/lesson-content.html.
 export const source = 'Check both time zones.';
 const maxEstimate = 1; // ETB per clip for this proof of concept
-export class UserMessage extends Error {}
 
 async function readCached(path) {
   try {
@@ -15,13 +16,6 @@ async function readCached(path) {
     if (error.code === 'ENOENT') return null;
     throw error;
   }
-}
-
-function checkAmharic(text) {
-  if (typeof text !== 'string' || !/\p{Script=Ethiopic}/u.test(text) || text.length > 240) {
-    throw new UserMessage('Expected one short Amharic translation. Check the translation before requesting speech.');
-  }
-  return text.trim();
 }
 
 export async function run(command, { client, directory, confirm, log = console.log }) {
@@ -34,17 +28,16 @@ export async function run(command, { client, directory, confirm, log = console.l
   try {
     const cached = await readCached(translationFile);
     if (command === 'translate') {
-      if (cached !== null) return log('Cached Amharic:', checkAmharic(cached));
+      if (cached !== null) return log('Cached Amharic:', checkAmharic(cached, 240));
       log('English:', source);
       if (!await confirm('TRANSLATE')) return log('Translation cancelled.');
-      const result = await client.translate.create({ text: source, from: 'en', to: 'am' });
-      const text = checkAmharic(result.text);
+      const text = await translateEnglish(client, source, 240);
       await writeFile(translationFile, text, 'utf8');
       return log('Amharic:', text);
     }
 
     if (cached === null) throw new UserMessage('Run the translation test first to obtain the Amharic sentence.');
-    const text = checkAmharic(cached);
+    const text = checkAmharic(cached, 240);
     const catalog = await client.voices.list({ language: 'am' });
     const available = catalog.filter(voice => voice.language === 'am' && voice.isAvailable === true);
     const voice = available.find(voice => voice.id === 'am-hamen') ?? available[0];

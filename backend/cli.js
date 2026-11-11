@@ -1,7 +1,7 @@
-import AddisAI from 'addisai';
+import { createClient, UserMessage } from './translation.js';
 import { createInterface } from 'node:readline/promises';
 import { fileURLToPath } from 'node:url';
-import { run, explain, UserMessage } from './poc.js';
+import { run, explain } from './poc.js';
 
 async function confirm(action) {
   if (!process.stdin.isTTY) return false;
@@ -21,8 +21,7 @@ try {
     if (args.length !== 1 || !['translate', 'estimate', 'speak'].includes(args[0])) {
       throw new UserMessage('Use one command: translate, estimate, or speak.');
     }
-    if (!process.env.ADDIS_API_KEY?.trim()) throw new UserMessage('Set ADDIS_API_KEY in backend/.env for live tests.');
-    const client = new AddisAI({ apiKey: process.env.ADDIS_API_KEY, maxRetries: 0, logLevel: 'off' });
+    const client = createClient();
     await run(args[0], { client, confirm, directory: fileURLToPath(new URL('./output/', import.meta.url)) });
   }
 } catch (error) {

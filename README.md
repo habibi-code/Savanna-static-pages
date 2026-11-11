@@ -58,14 +58,16 @@ Everything else is inert.
 ## Accessible Learning Companion
 
 Open `pages/concept-with-navigation.html` directly in a browser. The **Learning companion**
-button follows the lesson title, “The Future of the VA Industry”. Each format displays a short,
-handwritten example labeled **Demo content**. The Amharic sample carries the `am` language tag.
+button follows the lesson title, “The Future of the VA Industry”. Simplified English and visual
+descriptions display fixed demo examples. To use live Amharic translation, serve the site
+with the local Node backend and activate **Translate lesson**. See the
+[backend setup and testing instructions](backend/README.md#live-lesson-translation).
 
 To embed the companion, copy `assets/learning-companion/`, load `lesson-content.js` followed
 by `learning-companion.js` as classic scripts, and place `<alx-learning-companion></alx-learning-companion>`
 at the desired location. The widget loads its neighboring stylesheet into its shadow root.
-Only **Extracted lesson content (debug preview)** reads the current lesson. All three format
-choices use the fixed samples in `demoResponses`.
+The debug preview and Amharic translation both read the current lesson through the extractor.
+The translation action sends its title and body to the same-origin `POST /api/translate` endpoint.
 
 ### Lesson extraction
 
@@ -100,10 +102,11 @@ should never appear in the preview.
    the button name and its collapsed state.
 2. Press Enter or Space. The button should report expanded and keep focus. Tab into
    **Choose a lesson format**. On first use, press Space to select **Simplified English**.
-3. Use the arrow keys to select **Amharic** and **Visual content descriptions**. Listen for
-   the radio label, checked state, and a polite announcement of **Demo content** and the new
-   sample. Focus should stay on the chosen option. Amharic pronunciation depends on the
-   reader's language-switching setting and installed voices.
+3. Use the arrow keys to select **Amharic**. Focus stays on the radio. Tab to **Translate lesson**.
+   After approving live spending, press Enter and listen for the loading and completion messages.
+   The button keeps focus and the result below has `lang="am"`. Amharic pronunciation depends on
+   installed voices and language-switching settings. Selecting **Visual content descriptions**
+   still announces its demo. Opening the panel and navigating options cost nothing.
 4. Tab to **Extracted lesson content (debug preview)** and press Enter or Space. Focus should
    stay on the disclosure. Use the reader's browsing commands to read the title, headings,
    lists and image labels. In the fixture, switch lessons with the preview open and listen for
