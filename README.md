@@ -55,19 +55,22 @@ the accessibility tree and no id appears twice):
 
 Everything else is inert.
 
-## Accessible Learning Companion
+## Inklu — Learning without barriers
 
-Open `pages/concept-with-navigation.html` directly in a browser. The **Learning companion**
+Open `pages/concept-with-navigation.html` directly in a browser. The **Inklu — Learning without barriers**
 button follows the lesson title, “The Future of the VA Industry”. Simplified English and visual
 descriptions display fixed demo examples. To use live Amharic translation, serve the site
 with the local Node backend and activate **Translate lesson**. See the
 [backend setup and testing instructions](backend/README.md#live-lesson-translation).
 
-To embed the companion, copy `assets/learning-companion/`, load `lesson-content.js` followed
-by `learning-companion.js` as classic scripts, and place `<alx-learning-companion></alx-learning-companion>`
+To embed the companion, copy `assets/learning-companion/`, load `lesson-content.js`,
+`amharic-audio.js`, and `learning-companion.js` in order as classic scripts, and place `<alx-learning-companion></alx-learning-companion>`
 at the desired location. The widget loads its neighboring stylesheet into its shadow root.
 The debug preview and Amharic translation both read the current lesson through the extractor.
 The translation action sends its title and body to the same-origin `POST /api/translate` endpoint.
+After translation, **Listen in Amharic** checks the selected passage for saved audio or
+shows a cost estimate. A new clip requires **Confirm generation**. See the
+[speech controls and testing guide](backend/README.md#amharic-audio).
 
 ### Lesson extraction
 
@@ -88,7 +91,7 @@ be included in the replacement page. Opening the preview again reads the latest 
 
 ### Offline fixture
 
-Open `tests/lesson-content.html` directly. Open **Learning companion**, expand **Extracted
+Open `tests/lesson-content.html` directly. Open **Inklu — Learning without barriers**, expand **Extracted
 lesson content (debug preview)**, and use **Active test lesson** to switch examples. The meeting
 brief should show a numbered list and a banner description. The schedule should show a bulleted
 list and one missing-alt marker. Check that switching back restores only the first lesson,
@@ -97,7 +100,7 @@ should never appear in the preview.
 
 ### Keyboard and screen reader checks
 
-1. Open the lesson and Tab to **Learning companion**. Look for the focus outline. With NVDA
+1. Open the lesson and Tab to **Inklu — Learning without barriers**. Look for the focus outline. With NVDA
    and Firefox or Chrome, use the buttons list or navigate from the lesson heading. Listen for
    the button name and its collapsed state.
 2. Press Enter or Space. The button should report expanded and keep focus. Tab into

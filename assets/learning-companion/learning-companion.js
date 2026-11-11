@@ -35,7 +35,7 @@
       const root = this.attachShadow({ mode: 'open' });
       root.innerHTML = `
         <button type="button" id="toggle" aria-expanded="false" aria-controls="panel">
-          Learning companion
+          Inklu — Learning without barriers
         </button>
         <section id="panel" aria-labelledby="toggle" hidden>
           <fieldset>
@@ -52,6 +52,7 @@
             <button type="button" id="translate" aria-describedby="translation-help">Translate lesson</button>
             <p id="translation-status" role="status" aria-atomic="true"></p>
             <div id="translation" lang="am" dir="auto"></div>
+            <div id="speech"></div>
           </div>
           <details>
             <summary>Extracted lesson content (debug preview)</summary>
@@ -60,6 +61,7 @@
           </details>
         </section>`;
 
+      if (window.InkluAmharicAudio) this.speech = new window.InkluAmharicAudio(root.getElementById('speech'));
       const link = document.createElement('link');
       link.rel = 'stylesheet';
       link.href = stylesheet;
@@ -94,6 +96,7 @@
 
       const result = root.querySelector('.result');
       panel.addEventListener('change', (event) => {
+        if (!event.target.matches('input[name="format"]')) return;
         const amharic = event.target.value === 'amharic';
         this.clearTranslation();
         root.getElementById('amharic').hidden = !amharic;
@@ -140,10 +143,10 @@
     }
 
     refreshLesson(lesson) {
-      this.previewLesson = lesson;
-      if (this.translationSource && this.translationSource !== lessonText(lesson)) {
+      if (this.translationSource && (this.previewLesson !== lesson || this.translationSource !== lessonText(lesson))) {
         this.clearTranslation('The lesson changed. Choose Translate lesson to translate the current text.');
       }
+      this.previewLesson = lesson;
       if (this.shadowRoot.querySelector('details').open) this.renderPreview(lesson);
     }
 
@@ -152,6 +155,8 @@
       this.request = null;
       this.translationSource = '';
       const root = this.shadowRoot;
+      if (message && root.getElementById('speech').contains(root.activeElement)) root.getElementById('translate').focus();
+      this.speech?.setTranslation('');
       root.getElementById('translate').removeAttribute('aria-disabled');
       root.getElementById('translation').removeAttribute('aria-busy');
       root.getElementById('translation').textContent = '';
@@ -172,6 +177,7 @@
       const controller = new AbortController();
       this.request = controller;
       this.translationSource = text;
+      this.previewLesson = this.findLesson();
       this.watchLesson();
       const output = root.getElementById('translation');
       const button = root.getElementById('translate');
@@ -200,6 +206,7 @@
         if (this.request !== controller) return;
         if (typeof translation !== 'string' || !translation.trim()) throw new Error();
         output.textContent = translation;
+        this.speech?.setTranslation(translation);
         status.textContent = 'Amharic translation ready. Read it below.';
       } catch {
         if (this.request === controller) status.textContent = controller.signal.aborted

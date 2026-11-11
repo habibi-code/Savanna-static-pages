@@ -1,13 +1,12 @@
-import { createHash, randomUUID } from 'node:crypto';
 import { existsSync } from 'node:fs';
-import { mkdir, readFile, rename, unlink, writeFile } from 'node:fs/promises';
+import { mkdir, readFile, unlink, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { checkAmharic, translateEnglish, UserMessage } from './translation.js';
+import { prepareSpeech, estimateSpeech, saveSpeech } from './speech.js';
 export { UserMessage };
 
 // One sentence from the schedule example in tests/lesson-content.html.
 export const source = 'Check both time zones.';
-const maxEstimate = 1; // ETB per clip for this proof of concept
 
 async function readCached(path) {
   try {
@@ -38,32 +37,17 @@ export async function run(command, { client, directory, confirm, log = console.l
 
     if (cached === null) throw new UserMessage('Run the translation test first to obtain the Amharic sentence.');
     const text = checkAmharic(cached, 240);
-    const catalog = await client.voices.list({ language: 'am' });
-    const available = catalog.filter(voice => voice.language === 'am' && voice.isAvailable === true);
-    const voice = available.find(voice => voice.id === 'am-hamen') ?? available[0];
-    if (!voice) throw new UserMessage('The catalog currently has no available Amharic voice.');
-    const input = { text, voiceId: voice.id, language: 'am', outputFormat: 'mp3_44100' };
-    const requestId = createHash('sha256').update(JSON.stringify(input)).digest('hex').slice(0, 32);
-    const audioPath = join(directory, requestId + '.mp3');
-    if (command === 'speak' && existsSync(audioPath)) return log('Saved clip:', audioPath);
-    const quote = await client.voice.estimate(input);
-    if (quote.currency !== 'ETB' || !Number.isFinite(quote.estimatedCost) || quote.estimatedCost < 0 ||
-        !Number.isFinite(quote.currentBalance)) throw new UserMessage('The estimate is incomplete. Request a fresh quote.');
-    log('Voice:', voice.id, '| Amharic:', text);
-    log('Estimated billable seconds:', quote.estimatedBillableSeconds, '| Estimated ETB:', quote.estimatedCost,
-      '| Balance ETB:', quote.currentBalance);
-    if (quote.canGenerate !== true || quote.currentBalance < quote.estimatedCost) {
-      throw new UserMessage('The wallet or provider does not permit this generation. Check the balance.');
-    }
-    if (quote.estimatedCost > maxEstimate) throw new UserMessage('Estimate exceeds the 1 ETB test limit.');
+    const speech = await prepareSpeech(client, text, directory);
+    if (command === 'speak' && existsSync(speech.audioPath)) return log('Saved clip:', speech.audioPath);
+    await estimateSpeech(client, speech, quote => {
+      log('Voice:', speech.input.voiceId, '| Amharic:', text);
+      log('Estimated billable seconds:', quote.estimatedBillableSeconds, '| Estimated ETB:', quote.estimatedCost,
+        '| Balance ETB:', quote.currentBalance);
+    });
     if (command === 'estimate') return;
     if (!await confirm('GENERATE')) return log('Audio generation cancelled.');
-    const clip = await client.voice.generate({ ...input, clientRequestId: requestId });
-    log('Clip ID:', clip.id, '| Actual ETB:', clip.usage?.creditsUsed ?? 'unreported');
-    const temporary = audioPath + '.' + randomUUID() + '.part';
-    await clip.toFile(temporary);
-    await rename(temporary, audioPath);
-    log('Saved clip:', audioPath);
+    await saveSpeech(client, speech, clip => log('Clip ID:', clip.id, '| Actual ETB:', clip.usage?.creditsUsed ?? 'unreported'));
+    log('Saved clip:', speech.audioPath);
   } finally {
     await unlink(lock);
   }

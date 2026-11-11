@@ -1,4 +1,4 @@
-# Savanna Addis AI backend
+# Inklu · Savanna Addis AI backend
 
 ## Live lesson translation
 
@@ -19,7 +19,7 @@ absent, opening pages, inspecting the preview, and testing the unavailable-servi
 state are free. Startup and automated tests make zero paid requests.
 
 1. Open [the short lesson fixture](http://127.0.0.1:3000/tests/lesson-content.html).
-   Open **Learning companion**, select **Amharic**, and Tab to **Translate lesson**.
+   Open **Inklu — Learning without barriers**, select **Amharic**, and Tab to **Translate lesson**.
    Use the browser Network panel to verify there are no translation requests yet.
 2. **After approving live spend**, press Enter on **Translate lesson**. This sends
    the extracted title and body to Addis AI. Listen for the loading and completion
@@ -51,6 +51,54 @@ API requests are unsupported. The local server checks Host and Origin, serves
 only public site paths, and omits keys, provider error bodies, and lesson text
 from logs. Any local process can call this endpoint. It is intended for local
 development; a shared deployment needs authentication and per-user spending limits.
+
+## Amharic audio
+
+Use the setup above, then open the [short lesson fixture](http://127.0.0.1:3000/tests/lesson-content.html).
+The same steps work on the [Savanna lesson](http://127.0.0.1:3000/pages/concept-with-navigation.html).
+
+1. Open Inklu, select **Amharic**, and check that **Listen in Amharic** is disabled.
+   After approval for live translation, activate **Translate lesson**. Verify that
+   translation completion enables listening and sends zero speech requests.
+2. For a longer translation, choose **Passage to hear**. Each option contains up to
+   100 UTF-16 code units. Activate **Listen in Amharic** with Enter or Space.
+   A saved MP3 enables **Play**. Otherwise, the polite status announces the voice and
+   estimate. **Cancel** returns focus to the listening button and incurs no generation charge.
+3. Only after approving live audio spend, Tab to **Confirm generation** and press Enter.
+   The server checks the current estimate again. It rejects expired quotes, price
+   increases, insufficient credit and estimates above **1 ETB per clip**.
+   When the clip is ready, use **Play**, **Pause**, **Resume**, and **Stop**.
+   Stop returns to the beginning. Playback never advances to a new passage automatically.
+4. While playing, change the passage or lesson, change formats, or close the panel.
+   Playback stops. On a new lesson, translate again before requesting audio.
+   Reopening a previously generated passage with the same voice reuses the local MP3.
+   Switching away after confirmation does not reverse a provider charge already in progress.
+5. With a screen reader, check the audio group's name, the Amharic language on the
+   text and passage options, the quote, and playback announcements. Check that
+   completion leaves focus on the current control if you have navigated elsewhere.
+
+**API.** `POST /api/speech/estimate` takes `{"text":"…"}` and returns either
+cached `audio/mpeg` bytes or a quote with `quoteId`, `voice`, `currency` and
+`estimatedCost`. `POST /api/speech/generate` takes `{"quoteId":"…","confirmed":true}`
+and returns MP3 bytes. Each random quote ID expires after two minutes and can be
+redeemed once. It binds the exact passage, voice, format and price on the server.
+Both routes inherit the local Host, same-origin and JSON checks. Limits are 2 KiB
+per body, 240 units of Amharic-containing text, eight estimate requests and four
+generation requests per minute across tabs.
+
+**Billing and storage.** At the list rate of 5 ETB per generated minute, six billable
+seconds would cost 0.50 ETB. Discounts can change the quote. The guard applies to
+the estimate; actual billing follows generated duration. Server-side voice discovery,
+quotes, and generation have deadlines of 10, 10 and 95 seconds respectively. The SDK
+clip download has a 20-second deadline. The CLI and HTTP service share the hashed MP3
+cache in Git-ignored `backend/output/` and the same provider request ID for identical
+inputs. Concurrent HTTP approvals for the same clip share a single generation.
+The browser receives audio bytes. Credentials, local paths and provider-signed URLs
+stay on the server. [Official Addis AI pricing](https://docs.addisassistant.com/docs/platform/pricing)
+
+**Offline verification.** `npm.cmd test` uses mocked provider responses and temporary
+directories. It exercises confirmation, concurrent requests, replay, expiry, rate
+limits, cost and balance changes, and safe provider failures.
 
 ## Phase 3A CLI
 

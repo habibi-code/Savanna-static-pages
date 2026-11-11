@@ -120,3 +120,9 @@ summary {
 button[aria-disabled="true"] {
   cursor: progress;
 }
+
+#speech [hidden] { display: none; }
+#speech select { max-width: 100%; font: inherit; }
+#speech label { display: grid; }
+#speech button:disabled { opacity: .6; cursor: default; }
+#speech select:focus-visible { outline: 3px solid #005da6; outline-offset: 3px; }
