@@ -61,12 +61,37 @@ Open `pages/concept-with-navigation.html` directly in a browser. The **Learning 
 button follows the lesson title, “The Future of the VA Industry”. Each format displays a short,
 handwritten example labeled **Demo content**. The Amharic sample carries the `am` language tag.
 
-The lesson includes `assets/learning-companion/learning-companion.js` as a classic script and
-places `<alx-learning-companion></alx-learning-companion>` where the control should appear.
-To embed it elsewhere, copy the widget directory and use the same element and script with the
-new site's path. The script loads the neighboring `learning-companion.css` into each instance's
-shadow root. The three lesson-specific samples live in `demoResponses` in the script. A future
-API integration can supply the same `lang` and `text` fields to the result renderer.
+To embed the companion, copy `assets/learning-companion/`, load `lesson-content.js` followed
+by `learning-companion.js` as classic scripts, and place `<alx-learning-companion></alx-learning-companion>`
+at the desired location. The widget loads its neighboring stylesheet into its shadow root.
+Only **Extracted lesson content (debug preview)** reads the current lesson. All three format
+choices use the fixed samples in `demoResponses`.
+
+### Lesson extraction
+
+`SavannaLessonContent.extractLesson(lessonElement)` returns a title string and a detached
+`DocumentFragment` in reading order. By default it looks for `#curriculum_navigation_content`,
+reads its first visible `h1`, and walks the outermost `.formatted-content` or `.savanna-styles`
+wrappers. This keeps headings, loose introductory prose, callouts, paragraphs, lists and captions.
+Link text stays readable. Image labels come from `aria-label` or `alt`. Missing alt text gets
+a marker, while an explicit empty alt identifies a decorative image.
+
+Navigation, buttons, forms, progress indicators, footers, hidden subtrees and the companion
+are excluded. The preview reads authored DOM text. Embedded media, text drawn inside images,
+and descriptions supplied only through external ARIA references are outside its scope.
+
+While the panel and preview are open, a mutation observer refreshes the preview when the
+lesson changes, including when its content container is replaced. The mount must persist or
+be included in the replacement page. Opening the preview again reads the latest content.
+
+### Offline fixture
+
+Open `tests/lesson-content.html` directly. Open **Learning companion**, expand **Extracted
+lesson content (debug preview)**, and use **Active test lesson** to switch examples. The meeting
+brief should show a numbered list and a banner description. The schedule should show a bulleted
+list and one missing-alt marker. Check that switching back restores only the first lesson,
+and that **No lesson loaded** clears the preview. Test navigation, controls, and footer text
+should never appear in the preview.
 
 ### Keyboard and screen reader checks
 
@@ -79,10 +104,14 @@ API integration can supply the same `lang` and `text` fields to the result rende
    the radio label, checked state, and a polite announcement of **Demo content** and the new
    sample. Focus should stay on the chosen option. Amharic pronunciation depends on the
    reader's language-switching setting and installed voices.
-4. Tab forward to leave the widget, then Shift+Tab back to the selected option. Press Escape.
+4. Tab to **Extracted lesson content (debug preview)** and press Enter or Space. Focus should
+   stay on the disclosure. Use the reader's browsing commands to read the title, headings,
+   lists and image labels. In the fixture, switch lessons with the preview open and listen for
+   a short status update. Focus should stay on the lesson picker.
+5. Tab past the preview or Shift+Tab back to the selected option. Press Escape inside the widget.
    Focus should return to the collapsed button. The choices and response should disappear
    from both the tab order and the screen reader's reading order.
-5. Reopen the panel and close it using the same button. Check the lesson's sidebar, course
+6. Reopen the panel and close it using the same button. Check the lesson's sidebar, course
    dropdown, and curriculum accordion. Open the landing page and both homepages to confirm
    that the companion appears only on the lesson.
 

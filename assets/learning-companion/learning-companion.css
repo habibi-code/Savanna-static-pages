@@ -79,7 +79,7 @@ input {
   accent-color: #174c62;
 }
 
-button:focus-visible, label:has(input:focus-visible) {
+button:focus-visible, summary:focus-visible, label:has(input:focus-visible) {
   outline: 3px solid #005da6;
   outline-offset: 3px;
 }
@@ -93,4 +93,21 @@ button:focus-visible, label:has(input:focus-visible) {
 
 .result p {
   margin: .25rem 0 0;
+}
+
+details {
+  margin-top: 1rem;
+  border-top: 1px solid #82959e;
+  padding-top: .5rem;
+}
+
+summary {
+  padding-block: .6rem;
+  color: #174c62;
+  font-weight: 650;
+  cursor: pointer;
+}
+
+#preview {
+  overflow-wrap: anywhere;
 }

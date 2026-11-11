@@ -1,0 +1,72 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Learning Companion lesson extraction test</title>
+    <script defer src="../assets/learning-companion/lesson-content.js"></script>
+    <script defer src="../assets/learning-companion/learning-companion.js"></script>
+  </head>
+  <body>
+    <header>
+      <h1>Learning Companion extraction test</h1>
+      <p>Open the debug preview, then change the active lesson. Compare it with the source below.</p>
+      <label for="example">Active test lesson</label>
+      <select id="example">
+        <option value="brief">Writing a meeting brief</option>
+        <option value="schedule">Reading a weekly schedule</option>
+        <option value="empty">No lesson loaded</option>
+      </select>
+    </header>
+    <main>
+      <alx-learning-companion></alx-learning-companion>
+      <div id="lesson-slot"></div>
+    </main>
+    <template id="brief">
+      <article id="curriculum_navigation_content">
+        <h1>Writing a meeting brief</h1>
+        <div class="formatted-content">
+          <div class="savanna-styles">
+            A brief gives the team a <strong>shared purpose</strong>.
+            <h2>Before the meeting</h2>
+            <p>Write the decision you need in one sentence.</p>
+            <ol><li>Name the decision owner.</li><li>Set a deadline.</li></ol>
+            <figure>
+              <img src="../assets/img/VA-Content-Banner.png" alt="VA course banner" width="220">
+              <figcaption>Banner used in the meeting brief exercise.</figcaption>
+            </figure>
+            <nav><p>Test navigation menu</p></nav>
+            <div role="progressbar" aria-label="Completion">Test progress indicator</div>
+            <footer>Test footer</footer>
+          </div>
+        </div>
+        <button type="button">Test completion button</button>
+      </article>
+    </template>
+    <template id="schedule">
+      <article id="curriculum_navigation_content">
+        <h1>Reading a weekly schedule</h1>
+        <div class="formatted-content">
+          <h2>Find an open slot</h2>
+          <p>Compare the two calendars before sending an invitation.</p>
+          <ul><li>Check both time zones.</li><li>Allow time between calls.</li></ul>
+          <img src="../assets/img/VA-Content-Banner.png" width="220">
+          <img src="../assets/img/VA-Content-Banner.png" alt="" width="110">
+          <p hidden>Test hidden answer</p>
+          <p><button type="button">Test embedded button</button></p>
+        </div>
+      </article>
+    </template>
+    <script>
+      const picker = document.getElementById('example');
+      function loadExample() {
+        const template = document.getElementById(picker.value);
+        const slot = document.getElementById('lesson-slot');
+        slot.replaceChildren();
+        if (template) slot.append(template.content.cloneNode(true));
+      }
+      picker.addEventListener('change', loadExample);
+      loadExample();
+    </script>
+  </body>
+</html>

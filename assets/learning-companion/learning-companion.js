@@ -37,6 +37,11 @@
             </div>
           </fieldset>
           <div class="result" role="status" aria-atomic="true"></div>
+          <details>
+            <summary>Extracted lesson content (debug preview)</summary>
+            <p id="preview-status" role="status" aria-atomic="true"></p>
+            <div id="preview"></div>
+          </details>
         </section>`;
 
       const link = document.createElement('link');
@@ -46,9 +51,19 @@
 
       const toggle = root.getElementById('toggle');
       const panel = root.getElementById('panel');
+      const details = root.querySelector('details');
+      this.previewObserver = new MutationObserver((records) => {
+        const lesson = this.findLesson();
+        if (lesson !== this.previewLesson || records.some(({ target }) =>
+          lesson && (lesson.contains(target) || target.contains(lesson)))) {
+          this.renderPreview(lesson);
+        }
+      });
+      details.addEventListener('toggle', () => this.watchPreview());
       const setOpen = (open) => {
         panel.hidden = !open;
         toggle.setAttribute('aria-expanded', String(open));
+        this.watchPreview();
       };
       toggle.addEventListener('click', () => setOpen(panel.hidden));
       root.addEventListener('keydown', (event) => {
@@ -63,12 +78,57 @@
       panel.addEventListener('change', (event) => {
         const response = demoResponses[event.target.value];
         const label = document.createElement('strong');
-        label.textContent = 'Demo content';
+        label.textContent = 'Demo content (fixed example)';
         const sample = document.createElement('p');
         sample.lang = response.lang;
         sample.textContent = response.text;
         result.replaceChildren(label, sample);
       });
+    }
+
+    findLesson() {
+      return this.closest('#curriculum_navigation_content') ||
+        this.ownerDocument.getElementById('curriculum_navigation_content');
+    }
+
+    connectedCallback() {
+      this.watchPreview();
+    }
+
+    disconnectedCallback() {
+      this.previewObserver.disconnect();
+    }
+
+    watchPreview() {
+      this.previewObserver.disconnect();
+      if (!this.isConnected || this.shadowRoot.getElementById('panel').hidden ||
+          !this.shadowRoot.querySelector('details').open) return;
+
+      this.renderPreview(this.findLesson());
+      this.previewObserver.observe(this.ownerDocument.documentElement, {
+        subtree: true, childList: true, characterData: true, attributes: true,
+        attributeFilter: ['id', 'class', 'style', 'role', 'hidden', 'inert', 'aria-hidden',
+          'lang', 'alt', 'aria-label', 'start', 'reversed', 'value'],
+      });
+    }
+
+    renderPreview(lesson) {
+      this.previewLesson = lesson;
+      const extracted = window.SavannaLessonContent?.extractLesson(lesson);
+      const preview = this.shadowRoot.getElementById('preview');
+      const next = preview.cloneNode(false);
+      const title = document.createElement('h2');
+      title.textContent = extracted?.title || 'Lesson title unavailable';
+      next.append(title);
+      const hasContent = Boolean(extracted?.content.textContent.trim());
+      if (hasContent) next.append(extracted.content);
+      const status = this.shadowRoot.getElementById('preview-status');
+      const message = hasContent ? 'Preview updated for ' + (extracted.title || 'the untitled lesson') + '.' :
+        'No lesson body is available to preview.';
+      if (preview.isEqualNode(next) && status.textContent) return;
+      preview.replaceChildren(...Array.from(next.childNodes));
+      // Keep the long reading surface outside the live region.
+      status.textContent = message;
     }
   }
 
