@@ -1,0 +1,96 @@
+:host {
+  display: block;
+  max-width: 44rem;
+  margin-block: 1rem;
+  color: #182b38;
+  font: 1rem/1.5 system-ui, sans-serif;
+}
+
+button, label {
+  box-sizing: border-box;
+  min-height: 2.75rem;
+  padding: .5rem .85rem;
+  border-radius: .5rem;
+  cursor: pointer;
+}
+
+button {
+  display: inline-flex;
+  align-items: center;
+  gap: .75rem;
+  max-width: 100%;
+  border: 1px solid #174c62;
+  background: #174c62;
+  color: white;
+  font: inherit;
+  font-weight: 650;
+}
+
+button::after {
+  content: '';
+  width: .4rem;
+  height: .4rem;
+  border: solid currentColor;
+  border-width: 0 2px 2px 0;
+  transform: translateY(-2px) rotate(45deg);
+}
+
+button[aria-expanded="true"]::after {
+  transform: translateY(2px) rotate(225deg);
+}
+
+section {
+  margin-top: .6rem;
+  padding: 1rem;
+  background: white;
+  border: 1px solid #82959e;
+  border-radius: .65rem;
+}
+
+fieldset {
+  min-inline-size: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+legend {
+  margin-bottom: .5rem;
+  padding: 0;
+  font-weight: 650;
+}
+
+.choices {
+  display: flex;
+  flex-wrap: wrap;
+  gap: .5rem;
+}
+
+label {
+  display: inline-flex;
+  align-items: center;
+  gap: .5rem;
+  border: 1px solid #738791;
+}
+
+input {
+  flex: none;
+  margin: 0;
+  accent-color: #174c62;
+}
+
+button:focus-visible, label:has(input:focus-visible) {
+  outline: 3px solid #005da6;
+  outline-offset: 3px;
+}
+
+.result:not(:empty) {
+  margin-top: 1rem;
+  padding: .75rem 1rem;
+  border-inline-start: .25rem solid #267491;
+  background: #eff6f8;
+}
+
+.result p {
+  margin: .25rem 0 0;
+}

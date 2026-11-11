@@ -55,4 +55,35 @@ the accessibility tree and no id appears twice):
 
 Everything else is inert.
 
+## Accessible Learning Companion
+
+Open `pages/concept-with-navigation.html` directly in a browser. The **Learning companion**
+button follows the lesson title, “The Future of the VA Industry”. Each format displays a short,
+handwritten example labeled **Demo content**. The Amharic sample carries the `am` language tag.
+
+The lesson includes `assets/learning-companion/learning-companion.js` as a classic script and
+places `<alx-learning-companion></alx-learning-companion>` where the control should appear.
+To embed it elsewhere, copy the widget directory and use the same element and script with the
+new site's path. The script loads the neighboring `learning-companion.css` into each instance's
+shadow root. The three lesson-specific samples live in `demoResponses` in the script. A future
+API integration can supply the same `lang` and `text` fields to the result renderer.
+
+### Keyboard and screen reader checks
+
+1. Open the lesson and Tab to **Learning companion**. Look for the focus outline. With NVDA
+   and Firefox or Chrome, use the buttons list or navigate from the lesson heading. Listen for
+   the button name and its collapsed state.
+2. Press Enter or Space. The button should report expanded and keep focus. Tab into
+   **Choose a lesson format**. On first use, press Space to select **Simplified English**.
+3. Use the arrow keys to select **Amharic** and **Visual content descriptions**. Listen for
+   the radio label, checked state, and a polite announcement of **Demo content** and the new
+   sample. Focus should stay on the chosen option. Amharic pronunciation depends on the
+   reader's language-switching setting and installed voices.
+4. Tab forward to leave the widget, then Shift+Tab back to the selected option. Press Escape.
+   Focus should return to the collapsed button. The choices and response should disappear
+   from both the tab order and the screen reader's reading order.
+5. Reopen the panel and close it using the same button. Check the lesson's sidebar, course
+   dropdown, and curriculum accordion. Open the landing page and both homepages to confirm
+   that the companion appears only on the lesson.
+
 
