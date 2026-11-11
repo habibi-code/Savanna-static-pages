@@ -2,3 +2,8 @@
 .DS_Store
 _tooling
 *.zip
+.env
+.env.*
+!.env.example
+/backend/node_modules/
+/backend/output/

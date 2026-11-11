@@ -61,6 +61,7 @@
       const picker = document.getElementById('example');
       function loadExample() {
         const template = document.getElementById(picker.value);
+        console.log('Loading example', picker.value, template);
         const slot = document.getElementById('lesson-slot');
         slot.replaceChildren();
         if (template) slot.append(template.content.cloneNode(true));
