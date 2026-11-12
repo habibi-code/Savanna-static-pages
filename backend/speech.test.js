@@ -76,6 +76,7 @@ test('two concurrently confirmed quotes for one clip share one generation', asyn
 
 for (const [scenario, change, expected] of [
   ['price increased', s => { s.price = 0.6; }, 409],
+  ['price decreased', s => { s.price = 0.4; }, 409],
   ['over 1 ETB', s => { s.price = 1.01; }, 422],
   ['balance dropped', s => { s.balance = 0; }, 402],
   ['malformed quote', s => { s.price = null; }, 502],
@@ -92,8 +93,9 @@ for (const [scenario, change, expected] of [
 test('expired and unknown quotes cannot generate', async t => {
   const { state, offer, generate } = await setup(t);
   t.mock.timers.enable({ apis: ['Date'], now: Date.now() });
-  const { quoteId } = await offer();
-  t.mock.timers.tick(120001);
+  const { quoteId, expiresAt } = await offer();
+  assert.equal(expiresAt, Date.now() + 120000);
+  t.mock.timers.tick(120000);
   assert.equal((await generate(quoteId)).status, 409);
   assert.equal((await generate('10000000-0000-4000-8000-000000000000')).status, 409);
   assert.equal(state.generations.length, 0);

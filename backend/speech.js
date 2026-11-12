@@ -59,8 +59,9 @@ export function speechService(client, directory) {
       const quoteId = randomUUID();
       for (const [id, quote] of quotes) if (quote.until <= Date.now()) quotes.delete(id);
       if (quotes.size >= 32) quotes.delete(quotes.keys().next().value);
-      quotes.set(quoteId, { speech, estimatedCost, until: Date.now() + 120000 });
-      return { quoteId, estimatedCost, currency: 'ETB', voice: speech.input.voiceId };
+      const expiresAt = Date.now() + 120000;
+      quotes.set(quoteId, { speech, estimatedCost, until: expiresAt });
+      return { quoteId, estimatedCost, currency: 'ETB', voice: speech.input.voiceId, expiresAt };
     },
 
     async redeem(id) {
@@ -72,7 +73,7 @@ export function speechService(client, directory) {
       if (!pending.has(speech.requestId)) {
         const generate = async () => {
           const fresh = await estimateSpeech(client, speech);
-          if (fresh.estimatedCost > quote.estimatedCost) throw new SpeechError(409, 'Price changed. Request a fresh estimate.');
+          if (fresh.estimatedCost !== quote.estimatedCost) throw new SpeechError(409, 'Price changed. Request a fresh estimate.');
           return saveSpeech(client, speech);
         };
         pending.set(speech.requestId, generate().finally(() => pending.delete(speech.requestId)));

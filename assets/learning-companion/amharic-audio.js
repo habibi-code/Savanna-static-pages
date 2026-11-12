@@ -15,6 +15,47 @@
     return parts;
   }
 
+  class SpeechRequestError extends Error {
+    constructor(status, message) { super(message); this.status = status; }
+  }
+
+  async function requestSpeech(action, body, signal) {
+    const response = await fetch('/api/speech/' + action, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, signal, redirect: 'error',
+      body: JSON.stringify(body),
+    });
+    if (!response.ok) {
+      const detail = await response.json().catch(() => ({}));
+      throw new SpeechRequestError(response.status, typeof detail?.error === 'string' ? detail.error : 'Speech is unavailable. Try again.');
+    }
+    if (response.headers.get('Content-Type')?.startsWith('audio/mpeg')) return response.blob();
+    const offer = await response.json();
+    if (action !== 'estimate' || typeof offer.quoteId !== 'string' || typeof offer.voice !== 'string' ||
+        offer.currency !== 'ETB' || !Number.isFinite(offer.estimatedCost) ||
+        offer.estimatedCost < 0 || offer.estimatedCost > 1) throw new Error();
+    return offer;
+  }
+
+  async function audioForPassage(text, approval, signal) {
+    const estimate = () => requestSpeech('estimate', { text }, signal);
+    if (!approval) return estimate();
+
+    let quote = approval;
+    if (Date.now() >= approval.expiresAt) {
+      quote = await estimate();
+      // This click approved only the displayed passage, price and voice.
+      if (quote instanceof Blob || quote.estimatedCost !== approval.estimatedCost || quote.voice !== approval.voice) return quote;
+    }
+    signal.throwIfAborted();
+    try {
+      return await requestSpeech('generate', { quoteId: quote.quoteId, confirmed: true }, signal);
+    } catch (error) {
+      // The server can invalidate a token or detect a new price during redemption.
+      if (!(error instanceof SpeechRequestError) || error.status !== 409) throw error;
+      return estimate();
+    }
+  }
+
   window.InkluAmharicAudio = class {
     constructor(container) {
       this.tools = document.createElement('div');
@@ -46,8 +87,11 @@
         if (this.audio) this.togglePlayback();
         else this.fetchAudio(false);
       });
-      this.confirm.addEventListener('click', () => {
-        if (this.quote && !this.request) this.fetchAudio(true);
+      this.confirm.addEventListener('keydown', event => {
+        if (event.key === 'Enter' && event.repeat) event.preventDefault();
+      });
+      this.confirm.addEventListener('click', event => {
+        if (event.detail <= 1 && this.quote && !this.request) this.fetchAudio(true);
       });
       this.cancel = this.tools.querySelector('[data-action="cancel"]');
       this.cancel.addEventListener('click', () => {
@@ -136,29 +180,18 @@
       this.listen.setAttribute('aria-disabled', 'true');
       this.confirm.setAttribute('aria-disabled', String(confirmed));
       this.cancel.setAttribute('aria-disabled', String(confirmed));
-      this.status.textContent = confirmed ? 'Generating audio…' : 'Checking availability and cost…';
+      this.status.textContent = confirmed ? 'Checking the approved price and preparing audio…' : 'Checking availability and cost…';
       // Keep confirmation visible while focused. Restore focus only if its group disappears.
       const returnFocus = () => {
         if (this.confirm.parentElement.contains(this.container.getRootNode().activeElement)) this.listen.focus();
       };
       try {
-        const response = await fetch(confirmed ? '/api/speech/generate' : '/api/speech/estimate', {
-          method: 'POST', headers: { 'Content-Type': 'application/json' }, signal: controller.signal, redirect: 'error',
-          body: JSON.stringify(confirmed ? { quoteId: this.quote, confirmed: true } : { text: this.text }),
-        });
-        if (!response.ok) {
-          const body = await response.json().catch(() => ({}));
-          if (controller !== this.request) return;
-          returnFocus();
-          this.reset(typeof body.error === 'string' ? body.error : 'Speech is unavailable. Try again.');
-          return;
-        }
-        if (response.headers.get('Content-Type')?.startsWith('audio/mpeg')) {
-          const blob = await response.blob();
-          if (controller !== this.request) return;
+        const result = await audioForPassage(this.text, confirmed ? this.quote : null, controller.signal);
+        if (controller !== this.request) return;
+        if (result instanceof Blob) {
           returnFocus();
           this.reset('');
-          const audio = new Audio(URL.createObjectURL(blob));
+          const audio = new Audio(URL.createObjectURL(result));
           this.audio = audio;
           audio.onplaying = () => { if (this.audio === audio && !audio.paused) this.playbackState('Pause', 'Playing Amharic audio.'); };
           audio.onpause = () => {
@@ -175,23 +208,22 @@
           this.stopButton.hidden = false;
           this.playbackState('Play', confirmed ? 'Audio ready. Choose Play.' : 'Saved audio ready. Choose Play.');
         } else {
-          const offer = await response.json();
-          if (controller !== this.request) return;
-          if (confirmed || typeof offer.quoteId !== 'string' || offer.currency !== 'ETB' ||
-              !Number.isFinite(offer.estimatedCost) || offer.estimatedCost < 0 || offer.estimatedCost > 1) throw new Error();
-          this.quote = offer.quoteId;
+          this.quote = result;
           const cost = document.createElement('strong');
-          cost.textContent = offer.estimatedCost + ' ETB';
+          cost.textContent = result.estimatedCost + ' ETB';
           const voice = document.createElement('span');
           voice.className = 'quote-voice';
-          voice.textContent = 'Voice: ' + offer.voice;
-          this.status.replaceChildren('Estimated cost: ', cost, ' ', voice);
+          voice.textContent = 'Voice: ' + result.voice;
+          const label = confirmed ? 'Review the refreshed estimate and confirm again: ' : 'Estimated cost: ';
+          this.status.replaceChildren(label, cost, ' ', voice);
           this.confirm.parentElement.hidden = false;
+          this.confirm.removeAttribute('aria-disabled');
+          this.cancel.removeAttribute('aria-disabled');
         }
-      } catch {
+      } catch (error) {
         if (controller === this.request) {
           returnFocus();
-          this.reset('Speech request failed or timed out. Choose Listen to try again.');
+          this.reset(error instanceof SpeechRequestError ? error.message : 'Speech request failed or timed out. Choose Listen to try again.');
         }
       } finally {
         clearTimeout(timer);

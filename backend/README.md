@@ -70,8 +70,10 @@ The same steps work on the [Savanna lesson](http://127.0.0.1:3000/pages/concept-
    A saved MP3 enables **Play**. Otherwise, the polite status announces the voice and
    estimate. **Cancel** returns focus to the listening button and incurs no generation charge.
 3. Only after approving live audio spend, Tab to **Confirm generation** and press Enter.
-   The server checks the current estimate again. It rejects expired quotes, price
-   increases, insufficient credit and estimates above **1 ETB per clip**.
+   Take as long as needed to review the estimate. If the token has expired,
+   Confirm refreshes the estimate for this passage. Approval applies only to
+   the displayed price and voice. A change requires another confirmation.
+   The server checks the price, balance and **1 ETB per clip** limit before generation.
    When the clip is ready, use **Play**, **Pause**, **Resume**, and **Stop**.
    Stop returns to the beginning. Playback never advances to a new passage automatically.
 4. While playing, activate Listen on another passage, change modes, or close the
@@ -84,7 +86,7 @@ The same steps work on the [Savanna lesson](http://127.0.0.1:3000/pages/concept-
 
 **API.** `POST /api/speech/estimate` takes `{"text":"…"}` and returns either
 cached `audio/mpeg` bytes or a quote with `quoteId`, `voice`, `currency` and
-`estimatedCost`. `POST /api/speech/generate` takes `{"quoteId":"…","confirmed":true}`
+`estimatedCost`, plus `expiresAt` in Unix milliseconds. `POST /api/speech/generate` takes `{"quoteId":"…","confirmed":true}`
 and returns MP3 bytes. Each random quote ID expires after two minutes and can be
 redeemed once. It binds the exact passage, voice, format and price on the server.
 Both routes inherit the local Host, same-origin and JSON checks. Limits are 2 KiB

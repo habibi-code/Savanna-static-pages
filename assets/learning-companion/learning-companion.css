@@ -96,7 +96,10 @@ header::after {
   justify-content: center; flex-wrap: wrap; gap: .45rem; min-width: 0; min-height: 2.45rem;
   border-radius: .58rem; padding: .3rem; font-size: .86rem; font-weight: 650; color: #46584e;
 }
-[role="tab"][aria-selected="true"] { background: #fff; color: var(--ink); border-color: #d4dccf; box-shadow: 0 1px 3px #2741381c; }
+[role="tab"][aria-selected="true"] {
+  background: #fff; color: var(--ink); border-color: #d4dccf;
+  border-bottom: 3px solid var(--spruce); box-shadow: 0 1px 3px #2741381c;
+}
 [role="tab"]:hover { background: #f5f7f1; }
 .mode-icon { display: inline-block; width: 1rem; height: .9rem; position: relative; flex: none; font-style: normal; }
 .lines::before { content: ""; position: absolute; left: 0; top: .12rem; width: 80%; border-top: 1.5px solid; box-shadow: 0 .26rem currentColor; }

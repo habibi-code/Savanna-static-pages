@@ -33,7 +33,7 @@
       super();
       const root = this.attachShadow({ mode: 'open' });
       root.innerHTML = `
-        <button type="button" id="toggle" aria-label="Open Inklu learning companion" aria-haspopup="dialog" aria-expanded="false" aria-controls="panel">
+        <button type="button" id="toggle" aria-haspopup="dialog" aria-expanded="false" aria-controls="panel">
           <span class="mark" aria-hidden="true"></span> Inklu <span class="launcher-label">Companion</span>
         </button>
         <dialog id="panel" aria-labelledby="brand" aria-describedby="lesson-title">

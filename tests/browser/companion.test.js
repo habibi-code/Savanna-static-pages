@@ -49,6 +49,7 @@ async function setup(t, options = {}) {
       await options.waitTranslation;
       return route.fulfill({ json: { translation: options.text ?? sample } });
     }
+    if (options.speech) return options.speech(route, url.pathname);
     if (url.pathname.endsWith('/estimate')) return route.fulfill({ json: { estimatedCost: 0.5, currency: 'ETB', voice: 'am-hamen', quoteId: 'offline' } });
     assert.equal(url.pathname, '/api/speech/generate');
     assert.deepEqual(calls.at(-1)[1], { confirmed: true, quoteId: 'offline' });
@@ -57,7 +58,7 @@ async function setup(t, options = {}) {
   const path = options.path ?? '/pages/concept-with-navigation.html';
   await page.goto(origin + path, { waitUntil: 'domcontentloaded' });
   const button = name => page.getByRole('button', { name, exact: true });
-  const launcher = button('Open Inklu learning companion');
+  const launcher = button('Inklu Companion');
   await launcher.waitFor();
   return { page, calls, launcher, button, panel: page.getByRole('dialog', { name: 'Inklu' }) };
 }
@@ -66,6 +67,8 @@ test('keyboard launcher, modal focus, mode navigation, escape and no layout shif
   const { page, launcher, panel, calls, button } = await setup(t);
   const position = () => page.locator('.formatted-content').first().evaluate(el => el.getBoundingClientRect().top + scrollY);
   const before = await position();
+  assert.equal((await launcher.innerText()).replace(/\s+/g, ' ').trim(), 'Inklu Companion');
+  assert.equal(await launcher.getAttribute('aria-haspopup'), 'dialog');
   await launcher.focus();
   await launcher.press('Enter');
   assert(await panel.isVisible());
@@ -87,6 +90,95 @@ test('keyboard launcher, modal focus, mode navigation, escape and no layout shif
   await panel.waitFor({ state: 'hidden' });
   assert(await launcher.evaluate(el => el.matches(':focus')));
 });
+
+test('selected mode has a contrasting indicator after focus leaves the tabs', async t => {
+  const { page, launcher } = await setup(t);
+  await launcher.press('Enter');
+  await page.keyboard.press('Tab');
+  await page.keyboard.press('ArrowLeft');
+  await page.keyboard.press('Tab');
+  const tab = page.getByRole('tab', { name: 'Simplify', selected: true });
+  const indicator = await tab.evaluate(el => {
+    const style = getComputedStyle(el);
+    return { focused: el.matches(':focus'), width: parseFloat(style.borderBottomWidth), style: style.borderBottomStyle,
+      color: style.borderBottomColor, inside: style.backgroundColor, outside: getComputedStyle(el.parentElement).backgroundColor };
+  });
+  function luminance(rgb) {
+    const [r, g, b] = rgb.match(/\d+/g).map(Number).map(n => n / 255)
+      .map(n => n <= 0.04045 ? n / 12.92 : ((n + 0.055) / 1.055) ** 2.4);
+    return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+  }
+  assert.equal(indicator.focused, false);
+  assert.equal(indicator.style, 'solid');
+  assert.ok(indicator.width >= 2);
+  for (const background of [indicator.inside, indicator.outside]) {
+    const levels = [luminance(indicator.color), luminance(background)].sort((a, b) => b - a);
+    assert.ok((levels[0] + 0.05) / (levels[1] + 0.05) >= 3);
+  }
+});
+
+for (const scenario of ['same terms', 'price change', 'voice change', 'server conflict', 'drawer closed']) {
+  test('reviewing an audio quote: ' + scenario, async t => {
+    const start = Date.UTC(2026, 0, 1);
+    const refreshing = Promise.withResolvers();
+    const release = Promise.withResolvers();
+    let estimates = 0;
+    const attempts = [];
+    const { page, panel, launcher, button } = await setup(t, { speech: async (route, path) => {
+      const body = route.request().postDataJSON();
+      if (path.endsWith('/estimate')) {
+        assert.equal(body.text, sample.split('\n\n')[0]);
+        estimates++;
+        if (estimates === 2) {
+          refreshing.resolve();
+          await release.promise;
+        }
+        return route.fulfill({ json: { quoteId: 'quote-' + estimates, currency: 'ETB',
+          expiresAt: start + (estimates === 1 ? 120000 : 3600000),
+          estimatedCost: estimates > 1 && scenario === 'price change' ? 0.4 : 0.5,
+          voice: estimates > 1 && scenario === 'voice change' ? 'am-other' : 'am-hamen' } });
+      }
+      assert.equal(body.confirmed, true);
+      attempts.push(body.quoteId);
+      if (scenario === 'server conflict' && attempts.length === 1) {
+        return route.fulfill({ status: 409, json: { error: 'Quote invalidated.' } });
+      }
+      return route.fulfill({ contentType: 'audio/mpeg', body: mp3 });
+    } });
+    await page.clock.setFixedTime(new Date(start));
+    await launcher.press('Enter');
+    await button('Translate with Addis AI').press('Enter');
+    await button('Listen to passage 1').press('Space');
+    const confirm = button('Confirm generation');
+    await confirm.waitFor();
+    if (scenario !== 'server conflict') await page.clock.setFixedTime(new Date(start + 1800000));
+    assert.equal(estimates, 1);
+    assert.deepEqual(attempts, []);
+    await confirm.press('Enter');
+    await refreshing.promise;
+    await page.keyboard.press('Enter');
+    if (scenario === 'drawer closed') await page.keyboard.press('Escape');
+    release.resolve();
+    if (scenario === 'drawer closed') {
+      await launcher.press('Enter');
+      assert(await button('Listen to passage 1').isEnabled());
+      assert.equal(await confirm.count(), 0);
+      assert.deepEqual(attempts, []);
+      return;
+    }
+    if (scenario !== 'same terms') {
+      await panel.getByText(/Review the refreshed estimate/).waitFor();
+      assert(await confirm.evaluate(el => el.matches(':focus')));
+      assert((await panel.locator('#speech-status').innerText()).includes(scenario === 'price change' ? '0.4 ETB' :
+        scenario === 'voice change' ? 'am-other' : '0.5 ETB'));
+      assert.deepEqual(attempts, scenario === 'server conflict' ? ['quote-1'] : []);
+      await confirm.press('Enter');
+    }
+    await button('Play passage 1').waitFor();
+    assert.equal(estimates, 2);
+    assert.deepEqual(attempts, scenario === 'server conflict' ? ['quote-1', 'quote-2'] : ['quote-2']);
+  });
+}
 
 test('translation error is retryable and stale audio estimates cannot reappear', async t => {
   const { page, launcher, panel, button } = await setup(t);

@@ -98,7 +98,7 @@ production UI hides this disclosure by default.
 
 ### Keyboard and screen reader checks
 
-1. Tab to **Open Inklu learning companion** and press Enter or Space. The modal
+1. Tab to **Inklu Companion** and press Enter or Space. The modal
    announces its name and current lesson. Initial focus is on **Close Inklu**.
 2. Tab to the selected mode. Use Left/Right, Home, or End to switch tabs. Each
    tab names its panel. In Translate, Tab to the translation action.
