@@ -61,13 +61,17 @@
       this.tools = document.createElement('div');
       this.tools.className = 'audio-tools';
       this.tools.innerHTML = `
+          <button type="button" data-action="pause" hidden>Pause</button>
           <button type="button" data-action="stop" aria-label="Stop Amharic audio" hidden>Stop</button>
+          <span class="playing" hidden>Playing</span>
           <p role="status" id="speech-status" aria-atomic="true"></p>
           <div class="quote-actions" role="group" hidden>
             <button type="button" data-action="confirm" aria-describedby="speech-status">Confirm generation</button>
             <button type="button" data-action="cancel">Cancel</button>
           </div>`;
       this.container = container;
+      this.pauseButton = this.tools.querySelector('[data-action="pause"]');
+      this.playing = this.tools.querySelector('.playing');
       this.stopButton = this.tools.querySelector('[data-action="stop"]');
       this.confirm = this.tools.querySelector('[data-action="confirm"]');
       this.status = this.tools.querySelector('[role="status"]');
@@ -77,14 +81,16 @@
         if (button !== this.listen) {
           this.deactivate();
           this.listen = button;
+          this.pauseButton.setAttribute('aria-label', 'Pause passage ' + button.dataset.passage);
           this.confirm.parentElement.setAttribute('aria-label', 'Audio confirmation for passage ' + button.dataset.passage);
           const card = button.closest('li');
           card.classList.add('active');
           card.append(this.tools);
           this.text = card.querySelector('[lang="am"]').textContent;
         }
-        if (this.request || this.quote) return;
-        if (this.audio) this.togglePlayback();
+        if (this.request) return;
+        if (this.quote) this.confirm.focus();
+        else if (this.audio) this.play();
         else this.fetchAudio(false);
       });
       this.confirm.addEventListener('keydown', event => {
@@ -99,11 +105,12 @@
         this.reset('Audio request cancelled.');
         this.listen.focus();
       });
+      this.pauseButton.addEventListener('click', () => this.audio?.pause());
       this.stopButton.addEventListener('click', () => {
         if (!this.audio) return;
         this.audio.pause();
         this.audio.currentTime = 0;
-        this.playbackState('Play', 'Playback stopped.');
+        this.setStatus('Playback stopped.');
       });
     }
 
@@ -146,30 +153,32 @@
         URL.revokeObjectURL(url);
       }
       this.confirm.parentElement.hidden = true;
-      this.confirm.removeAttribute('aria-disabled');
-      this.cancel.removeAttribute('aria-disabled');
+      this.confirm.removeAttribute('aria-busy');
+      this.cancel.hidden = false;
+      this.pauseButton.hidden = true;
       this.stopButton.hidden = true;
-      this.listen.removeAttribute('aria-disabled');
-      this.playbackState('Listen', message);
+      this.listen.removeAttribute('aria-busy');
+      this.setPassageAction('Listen');
+      this.setStatus(message);
     }
 
-    playbackState(action, message) {
+    setPassageAction(action) {
       this.listen.textContent = action;
       this.listen.setAttribute('aria-label', (action === 'Listen' ? 'Listen to' : action) + ' passage ' + this.listen.dataset.passage);
+    }
+
+    setStatus(message) {
+      this.playing.hidden = true;
       this.status.textContent = message;
     }
 
-    async togglePlayback() {
+    async play() {
       const audio = this.audio;
-      if (!audio.paused) {
-        audio.pause();
-        this.playbackState('Resume', 'Playback paused.');
-        return;
-      }
+      if (!audio.paused) return;
       try {
         await audio.play();
       } catch (error) {
-        if (audio === this.audio && error.name !== 'AbortError') this.playbackState('Play', 'Playback could not start. Try Play again.');
+        if (audio === this.audio && error.name !== 'AbortError') this.setStatus('Playback could not start. Try Play again.');
       }
     }
 
@@ -177,10 +186,11 @@
       const controller = new AbortController();
       this.request = controller;
       const timer = setTimeout(() => controller.abort(), confirmed ? 140000 : 30000);
-      this.listen.setAttribute('aria-disabled', 'true');
-      this.confirm.setAttribute('aria-disabled', String(confirmed));
-      this.cancel.setAttribute('aria-disabled', String(confirmed));
-      this.status.textContent = confirmed ? 'Checking the approved price and preparing audio…' : 'Checking availability and cost…';
+      const trigger = confirmed ? this.confirm : this.listen;
+      trigger.setAttribute('aria-busy', 'true');
+      this.cancel.hidden = confirmed;
+      this.confirm.removeAttribute('aria-describedby');
+      this.setStatus(confirmed ? 'Preparing audio…' : 'Checking availability and cost…');
       // Keep confirmation visible while focused. Restore focus only if its group disappears.
       const returnFocus = () => {
         if (this.confirm.parentElement.contains(this.container.getRootNode().activeElement)) this.listen.focus();
@@ -189,24 +199,33 @@
         const result = await audioForPassage(this.text, confirmed ? this.quote : null, controller.signal);
         if (controller !== this.request) return;
         if (result instanceof Blob) {
-          returnFocus();
-          this.reset('');
           const audio = new Audio(URL.createObjectURL(result));
+          this.setPassageAction('Play or resume');
+          returnFocus();
+          this.confirm.parentElement.hidden = true;
+          this.quote = null;
           this.audio = audio;
-          audio.onplaying = () => { if (this.audio === audio && !audio.paused) this.playbackState('Pause', 'Playing Amharic audio.'); };
+          audio.onplaying = () => {
+            if (this.audio !== audio || audio.paused) return;
+            // Keep playback state readable without speaking over the beginning of the clip.
+            this.status.textContent = '';
+            this.playing.hidden = false;
+          };
           audio.onpause = () => {
-            if (this.audio === audio && audio.paused && !audio.ended && this.listen.textContent === 'Pause') {
-              this.playbackState('Resume', 'Playback paused.');
+            if (this.audio === audio && audio.paused && !audio.ended && !this.playing.hidden) {
+              this.setStatus('Playback paused.');
             }
           };
-          audio.onended = () => { if (this.audio === audio) this.playbackState('Play', 'Playback finished.'); };
+          audio.onended = () => { if (this.audio === audio) this.setStatus('Playback finished.'); };
           audio.onerror = () => {
             if (this.audio !== audio) return;
-            if (this.container.getRootNode().activeElement === this.stopButton) this.listen.focus();
+            const focused = this.container.getRootNode().activeElement;
+            if (focused === this.pauseButton || focused === this.stopButton) this.listen.focus();
             this.reset('Playback failed. Choose Listen to try again.');
           };
+          this.pauseButton.hidden = false;
           this.stopButton.hidden = false;
-          this.playbackState('Play', confirmed ? 'Audio ready. Choose Play.' : 'Saved audio ready. Choose Play.');
+          this.setStatus('Audio ready.');
         } else {
           this.quote = result;
           const cost = document.createElement('strong');
@@ -217,8 +236,8 @@
           const label = confirmed ? 'Review the refreshed estimate and confirm again: ' : 'Estimated cost: ';
           this.status.replaceChildren(label, cost, ' ', voice);
           this.confirm.parentElement.hidden = false;
-          this.confirm.removeAttribute('aria-disabled');
-          this.cancel.removeAttribute('aria-disabled');
+          this.confirm.setAttribute('aria-describedby', 'speech-status');
+          this.cancel.hidden = false;
         }
       } catch (error) {
         if (controller === this.request) {
@@ -227,8 +246,10 @@
         }
       } finally {
         clearTimeout(timer);
-        if (controller === this.request) this.request = null;
-        if (!this.quote && !this.request) this.listen?.removeAttribute('aria-disabled');
+        if (controller === this.request) {
+          this.request = null;
+          trigger.removeAttribute('aria-busy');
+        }
       }
     }
   };

@@ -175,7 +175,7 @@ for (const scenario of ['same terms', 'price change', 'voice change', 'server co
       assert.deepEqual(attempts, scenario === 'server conflict' ? ['quote-1'] : []);
       await confirm.press('Enter');
     }
-    await button('Play passage 1').waitFor();
+    await button('Play or resume passage 1').waitFor();
     assert.equal(estimates, 2);
     assert.deepEqual(attempts, scenario === 'server conflict' ? ['quote-1', 'quote-2'] : ['quote-2']);
   });
@@ -291,12 +291,24 @@ test('mode transitions preserve one translation; audio stays scoped to one passa
   await panel.getByText(/0.5 ETB/).waitFor();
   assert(!calls.some(([path]) => path.endsWith('/generate')));
   await button('Confirm generation').press('Enter');
-  await button('Play passage 2').press('Enter');
-  await button('Pause passage 2').press('Space');
-  await button('Resume passage 2').press('Enter');
+  const play = button('Play or resume passage 2');
+  const playing = panel.getByText('Playing', { exact: true });
+  await play.press('Enter');
+  await playing.waitFor();
+  assert(await play.evaluate(el => el.matches(':focus')));
+  assert.equal(await panel.locator('#speech-status').textContent(), '');
+  assert.equal(await playing.evaluate(el => !!el.closest('[role="status"], [role="alert"], [aria-live]')), false);
+  await page.keyboard.press('Tab');
+  assert(await button('Pause passage 2').evaluate(el => el.matches(':focus')));
+  await page.keyboard.press('Space');
+  await panel.getByRole('status').filter({ hasText: 'Playback paused.' }).waitFor();
+  await page.keyboard.press('Shift+Tab');
+  await page.keyboard.press('Enter');
+  await playing.waitFor();
   await button('Stop Amharic audio').press('Enter');
-  await button('Play passage 2').press('Enter');
-  await button('Pause passage 2').waitFor();
+  await panel.getByRole('status').filter({ hasText: 'Playback stopped.' }).waitFor();
+  await play.press('Enter');
+  await playing.waitFor();
   await first.click();
   assert(await second.isVisible());
   assert.equal(await panel.locator('.passage.active').count(), 1);
@@ -305,6 +317,45 @@ test('mode transitions preserve one translation; audio stays scoped to one passa
   assert(await second.isVisible());
   assert.equal(calls.filter(([path]) => path === '/api/translate').length, 1);
   assert.equal(calls.filter(([path]) => path.endsWith('/generate')).length, 1);
+});
+
+test('audio preparation keeps the focused action busy and reports a failure with a usable retry', async t => {
+  const estimate = Promise.withResolvers();
+  const generation = Promise.withResolvers();
+  const { page, panel, launcher, button, calls } = await setup(t, { speech: async (route, path) => {
+    if (path.endsWith('/estimate')) {
+      await estimate.promise;
+      return route.fulfill({ json: { estimatedCost: 0.5, currency: 'ETB', voice: 'am-hamen', quoteId: 'offline' } });
+    }
+    await generation.promise;
+    return route.fulfill({ status: 503, json: { error: 'Speech service is unavailable. Try again.' } });
+  } });
+  await launcher.press('Enter');
+  await button('Translate with Addis AI').press('Enter');
+  const listen = button('Listen to passage 1');
+  await listen.press('Space');
+  const status = panel.getByRole('status');
+  await status.filter({ hasText: 'Checking availability and cost' }).waitFor();
+  assert(await listen.isEnabled());
+  assert.equal(await listen.getAttribute('aria-busy'), 'true');
+  assert(await listen.evaluate(el => el.matches(':focus')));
+  await page.keyboard.press('Space');
+  estimate.resolve();
+  await status.filter({ hasText: '0.5 ETB' }).waitFor();
+  const confirm = button('Confirm generation');
+  await confirm.press('Enter');
+  await status.filter({ hasText: 'Preparing audio' }).waitFor();
+  assert(await confirm.isEnabled());
+  assert.equal(await confirm.getAttribute('aria-busy'), 'true');
+  assert(await confirm.evaluate(el => el.matches(':focus')));
+  await page.keyboard.press('Enter');
+  generation.resolve();
+  await status.filter({ hasText: 'Speech service is unavailable. Try again.' }).waitFor();
+  assert(await listen.evaluate(el => el.matches(':focus')));
+  assert.equal(await listen.getAttribute('aria-busy'), null);
+  assert.deepEqual(calls.map(([path]) => path), ['/api/translate', '/api/speech/estimate', '/api/speech/generate']);
+  await page.keyboard.press('Enter');
+  await confirm.waitFor();
 });
 
 test('developer preview, missing lesson and stale translation cleanup', async t => {

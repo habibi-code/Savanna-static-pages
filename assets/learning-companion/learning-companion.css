@@ -139,7 +139,7 @@ h3 { font: 500 2rem/1.18 Georgia, "Times New Roman", serif; letter-spacing: -.03
   grid-column: 1 / -1;
   font: 400 max(18px, 1.2rem)/1.62 "Noto Sans Ethiopic", Ebrima, Nyala, sans-serif;
 }
-[data-passage], [data-action="stop"], [data-action="cancel"] {
+[data-passage], [data-action="pause"], [data-action="stop"], [data-action="cancel"] {
   font-weight: 650; font-size: .83rem; border-radius: 2rem; min-height: 2.35rem;
   padding: .3rem .8rem; border: 1px solid #bdcdbd; background: #f0f5ed; color: #274933;
 }

@@ -67,21 +67,23 @@ The same steps work on the [Savanna lesson](http://127.0.0.1:3000/pages/concept-
    cards and sends zero speech requests.
 2. Each passage contains up to 100 UTF-16 code units and has an inline **Listen**
    button named for its passage number. Activate it with Enter or Space.
-   A saved MP3 enables **Play**. Otherwise, the polite status announces the voice and
+   A saved MP3 enables **Play or resume**. Otherwise, the polite status announces the voice and
    estimate. **Cancel** returns focus to the listening button and incurs no generation charge.
 3. Only after approving live audio spend, Tab to **Confirm generation** and press Enter.
    Take as long as needed to review the estimate. If the token has expired,
    Confirm refreshes the estimate for this passage. Approval applies only to
    the displayed price and voice. A change requires another confirmation.
    The server checks the price, balance and **1 ETB per clip** limit before generation.
-   When the clip is ready, use **Play**, **Pause**, **Resume**, and **Stop**.
+   When the clip is ready, activate **Play or resume**. Tab once to **Pause**.
+   Shift+Tab returns to **Play or resume** to continue from the paused position.
    Stop returns to the beginning. Playback never advances to a new passage automatically.
 4. While playing, activate Listen on another passage, change modes, or close the
    drawer. Playback stops. On a new lesson, translate again before requesting audio.
    Reopening a previously generated passage with the same voice reuses the local MP3.
    Switching away after confirmation does not reverse a provider charge already in progress.
 5. With a screen reader, check the passage-specific button names, the Amharic
-   language on each passage, the quote, and playback announcements. Check that
+   language on each passage, the quote, and the loading, ready and error messages.
+   Listen to the start of a clip for overlapping speech when starting or resuming. Check that
    completion leaves focus on the current control if you have navigated elsewhere.
 
 **API.** `POST /api/speech/estimate` takes `{"text":"…"}` and returns either
