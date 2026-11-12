@@ -22,7 +22,7 @@
       this.tools.innerHTML = `
           <button type="button" data-action="stop" aria-label="Stop Amharic audio" hidden>Stop</button>
           <p role="status" id="speech-status" aria-atomic="true"></p>
-          <div class="quote-actions" hidden>
+          <div class="quote-actions" role="group" hidden>
             <button type="button" data-action="confirm" aria-describedby="speech-status">Confirm generation</button>
             <button type="button" data-action="cancel">Cancel</button>
           </div>`;
@@ -36,6 +36,7 @@
         if (button !== this.listen) {
           this.deactivate();
           this.listen = button;
+          this.confirm.parentElement.setAttribute('aria-label', 'Audio confirmation for passage ' + button.dataset.passage);
           const card = button.closest('li');
           card.classList.add('active');
           card.append(this.tools);
@@ -179,7 +180,12 @@
           if (confirmed || typeof offer.quoteId !== 'string' || offer.currency !== 'ETB' ||
               !Number.isFinite(offer.estimatedCost) || offer.estimatedCost < 0 || offer.estimatedCost > 1) throw new Error();
           this.quote = offer.quoteId;
-          this.status.textContent = `Estimated cost: ${offer.estimatedCost} ETB · Voice: ${offer.voice}.`;
+          const cost = document.createElement('strong');
+          cost.textContent = offer.estimatedCost + ' ETB';
+          const voice = document.createElement('span');
+          voice.className = 'quote-voice';
+          voice.textContent = 'Voice: ' + offer.voice;
+          this.status.replaceChildren('Estimated cost: ', cost, ' ', voice);
           this.confirm.parentElement.hidden = false;
         }
       } catch {
