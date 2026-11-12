@@ -19,17 +19,18 @@ absent, opening pages, inspecting the preview, and testing the unavailable-servi
 state are free. Startup and automated tests make zero paid requests.
 
 1. Open [the short lesson fixture](http://127.0.0.1:3000/tests/lesson-content.html).
-   Open **Inklu — Learning without barriers**, select **Amharic**, and Tab to **Translate lesson**.
+   Open **Inklu Companion**, select the **Translate** tab, and Tab to **Translate with Addis AI**.
    Use the browser Network panel to verify there are no translation requests yet.
 2. **After approving live spend**, press Enter on **Translate lesson**. This sends
    the extracted title and body to Addis AI. Listen for the loading and completion
-   status. Focus stays on the button, and the Amharic text below can be read in browse mode.
-3. Switch the active lesson. The previous result clears. Activate the button to
+   status. On success, focus moves from the action to the result heading. Each Amharic
+   passage has its own Listen button.
+3. Close the drawer, switch the active lesson, and reopen it. The previous result clears. Activate the button to
    translate the new lesson. Returning to a previously translated lesson and pressing
    the button again uses the server cache while the entry is retained.
 4. Open [the Savanna lesson](http://127.0.0.1:3000/pages/concept-with-navigation.html)
    to try the same control on the full lesson. Its longer text requires multiple
-   provider requests. The debug preview, the two demos, and Escape-to-close also
+   provider requests. The developer preview (`?inkluDebug=1`), the two demos, and Escape-to-close also
    work with the API offline. To test an error for free, stop the server while the
    page is open and activate the action. Restart it before a user-initiated retry.
 
@@ -57,11 +58,11 @@ development; a shared deployment needs authentication and per-user spending limi
 Use the setup above, then open the [short lesson fixture](http://127.0.0.1:3000/tests/lesson-content.html).
 The same steps work on the [Savanna lesson](http://127.0.0.1:3000/pages/concept-with-navigation.html).
 
-1. Open Inklu, select **Amharic**, and check that **Listen in Amharic** is disabled.
-   After approval for live translation, activate **Translate lesson**. Verify that
-   translation completion enables listening and sends zero speech requests.
-2. For a longer translation, choose **Passage to hear**. Each option contains up to
-   100 UTF-16 code units. Activate **Listen in Amharic** with Enter or Space.
+1. Open Inklu and select **Translate**. After approval for live translation,
+   activate **Translate with Addis AI**. Translation completion renders passage
+   cards and sends zero speech requests.
+2. Each passage contains up to 100 UTF-16 code units and has an inline **Listen**
+   button named for its passage number. Activate it with Enter or Space.
    A saved MP3 enables **Play**. Otherwise, the polite status announces the voice and
    estimate. **Cancel** returns focus to the listening button and incurs no generation charge.
 3. Only after approving live audio spend, Tab to **Confirm generation** and press Enter.
@@ -69,12 +70,12 @@ The same steps work on the [Savanna lesson](http://127.0.0.1:3000/pages/concept-
    increases, insufficient credit and estimates above **1 ETB per clip**.
    When the clip is ready, use **Play**, **Pause**, **Resume**, and **Stop**.
    Stop returns to the beginning. Playback never advances to a new passage automatically.
-4. While playing, change the passage or lesson, change formats, or close the panel.
-   Playback stops. On a new lesson, translate again before requesting audio.
+4. While playing, activate Listen on another passage, change modes, or close the
+   drawer. Playback stops. On a new lesson, translate again before requesting audio.
    Reopening a previously generated passage with the same voice reuses the local MP3.
    Switching away after confirmation does not reverse a provider charge already in progress.
-5. With a screen reader, check the audio group's name, the Amharic language on the
-   text and passage options, the quote, and playback announcements. Check that
+5. With a screen reader, check the passage-specific button names, the Amharic
+   language on each passage, the quote, and playback announcements. Check that
    completion leaves focus on the current control if you have navigated elsewhere.
 
 **API.** `POST /api/speech/estimate` takes `{"text":"…"}` and returns either

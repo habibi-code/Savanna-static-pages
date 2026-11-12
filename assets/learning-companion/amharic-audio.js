@@ -17,33 +17,38 @@
 
   window.InkluAmharicAudio = class {
     constructor(container) {
-      container.innerHTML = `
-        <div role="group" aria-label="Amharic audio">
-          <div hidden><label>Passage to hear <select></select></label></div>
-          <button type="button" data-action="listen" disabled>Listen in Amharic</button>
+      this.tools = document.createElement('div');
+      this.tools.className = 'audio-tools';
+      this.tools.innerHTML = `
           <button type="button" data-action="stop" aria-label="Stop Amharic audio" hidden>Stop</button>
           <p role="status" id="speech-status" aria-atomic="true"></p>
-          <div hidden>
+          <div class="quote-actions" hidden>
             <button type="button" data-action="confirm" aria-describedby="speech-status">Confirm generation</button>
             <button type="button" data-action="cancel">Cancel</button>
-          </div>
-        </div>`;
+          </div>`;
       this.container = container;
-      this.select = container.querySelector('select');
-      this.listen = container.querySelector('[data-action="listen"]');
-      this.stopButton = container.querySelector('[data-action="stop"]');
-      this.confirm = container.querySelector('[data-action="confirm"]');
-      this.status = container.querySelector('[role="status"]');
-      this.select.addEventListener('change', () => this.reset('Passage changed.'));
-      this.listen.addEventListener('click', () => {
+      this.stopButton = this.tools.querySelector('[data-action="stop"]');
+      this.confirm = this.tools.querySelector('[data-action="confirm"]');
+      this.status = this.tools.querySelector('[role="status"]');
+      container.addEventListener('click', event => {
+        const button = event.target.closest('button[data-passage]');
+        if (!button) return;
+        if (button !== this.listen) {
+          this.deactivate();
+          this.listen = button;
+          const card = button.closest('li');
+          card.classList.add('active');
+          card.append(this.tools);
+          this.text = card.querySelector('[lang="am"]').textContent;
+        }
         if (this.request || this.quote) return;
         if (this.audio) this.togglePlayback();
-        else if (this.select.value) this.fetchAudio(false);
+        else this.fetchAudio(false);
       });
       this.confirm.addEventListener('click', () => {
         if (this.quote && !this.request) this.fetchAudio(true);
       });
-      this.cancel = container.querySelector('[data-action="cancel"]');
+      this.cancel = this.tools.querySelector('[data-action="cancel"]');
       this.cancel.addEventListener('click', () => {
         if (this.request) return;
         this.reset('Audio request cancelled.');
@@ -58,15 +63,28 @@
     }
 
     setTranslation(text) {
-      this.reset('');
-      const parts = passages(text);
-      this.select.replaceChildren(...parts.map((part, i) => {
-        const option = new Option((i + 1) + '. ' + part, part);
-        option.lang = 'am';
-        return option;
+      this.deactivate();
+      const parts = text.split(/\n+/u).flatMap(passages);
+      this.container.replaceChildren(...parts.map((part, index) => {
+        const card = document.createElement('li');
+        card.className = 'passage';
+        card.innerHTML = '<span class="passage-label"></span><p lang="am" dir="auto"></p><button type="button" data-passage></button>';
+        card.firstElementChild.textContent = 'Passage ' + String(index + 1).padStart(2, '0');
+        card.querySelector('p').textContent = part;
+        const button = card.querySelector('button');
+        button.textContent = 'Listen';
+        button.dataset.passage = String(index + 1);
+        button.setAttribute('aria-label', 'Listen to passage ' + (index + 1));
+        return card;
       }));
-      this.select.parentElement.parentElement.hidden = parts.length < 2;
-      this.listen.disabled = !parts.length;
+    }
+
+    deactivate() {
+      if (!this.listen) return;
+      this.reset('');
+      this.listen.closest('li').classList.remove('active');
+      this.tools.remove();
+      this.listen = null;
     }
 
     reset(message) {
@@ -87,12 +105,12 @@
       this.cancel.removeAttribute('aria-disabled');
       this.stopButton.hidden = true;
       this.listen.removeAttribute('aria-disabled');
-      this.playbackState('Listen in Amharic', message);
+      this.playbackState('Listen', message);
     }
 
     playbackState(action, message) {
       this.listen.textContent = action;
-      this.listen.setAttribute('aria-label', action === 'Listen in Amharic' ? action : action + ' Amharic audio');
+      this.listen.setAttribute('aria-label', (action === 'Listen' ? 'Listen to' : action) + ' passage ' + this.listen.dataset.passage);
       this.status.textContent = message;
     }
 
@@ -117,7 +135,7 @@
       this.listen.setAttribute('aria-disabled', 'true');
       this.confirm.setAttribute('aria-disabled', String(confirmed));
       this.cancel.setAttribute('aria-disabled', String(confirmed));
-      this.status.textContent = confirmed ? 'Generating Amharic audio…' : 'Checking for saved audio and estimating the cost…';
+      this.status.textContent = confirmed ? 'Generating audio…' : 'Checking availability and cost…';
       // Keep confirmation visible while focused. Restore focus only if its group disappears.
       const returnFocus = () => {
         if (this.confirm.parentElement.contains(this.container.getRootNode().activeElement)) this.listen.focus();
@@ -125,7 +143,7 @@
       try {
         const response = await fetch(confirmed ? '/api/speech/generate' : '/api/speech/estimate', {
           method: 'POST', headers: { 'Content-Type': 'application/json' }, signal: controller.signal, redirect: 'error',
-          body: JSON.stringify(confirmed ? { quoteId: this.quote, confirmed: true } : { text: this.select.value }),
+          body: JSON.stringify(confirmed ? { quoteId: this.quote, confirmed: true } : { text: this.text }),
         });
         if (!response.ok) {
           const body = await response.json().catch(() => ({}));
@@ -151,7 +169,7 @@
           audio.onerror = () => {
             if (this.audio !== audio) return;
             if (this.container.getRootNode().activeElement === this.stopButton) this.listen.focus();
-            this.reset('The audio could not be played. Try Listen in Amharic again.');
+            this.reset('Playback failed. Choose Listen to try again.');
           };
           this.stopButton.hidden = false;
           this.playbackState('Play', confirmed ? 'Audio ready. Choose Play.' : 'Saved audio ready. Choose Play.');
@@ -161,18 +179,18 @@
           if (confirmed || typeof offer.quoteId !== 'string' || offer.currency !== 'ETB' ||
               !Number.isFinite(offer.estimatedCost) || offer.estimatedCost < 0 || offer.estimatedCost > 1) throw new Error();
           this.quote = offer.quoteId;
-          this.status.textContent = `Voice ${offer.voice}. Estimated cost ${offer.estimatedCost} ETB for this passage. Confirm generation or cancel.`;
+          this.status.textContent = `Estimated cost: ${offer.estimatedCost} ETB · Voice: ${offer.voice}.`;
           this.confirm.parentElement.hidden = false;
         }
       } catch {
         if (controller === this.request) {
           returnFocus();
-          this.reset('Speech request failed or timed out. Choose Listen in Amharic to try again.');
+          this.reset('Speech request failed or timed out. Choose Listen to try again.');
         }
       } finally {
         clearTimeout(timer);
         if (controller === this.request) this.request = null;
-        if (!this.quote && !this.request) this.listen.removeAttribute('aria-disabled');
+        if (!this.quote && !this.request) this.listen?.removeAttribute('aria-disabled');
       }
     }
   };

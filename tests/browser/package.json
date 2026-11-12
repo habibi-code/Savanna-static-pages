@@ -1,0 +1,11 @@
+{
+  "name": "inklu-browser-tests",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "node --test companion.test.js"
+  },
+  "devDependencies": {
+    "playwright-core": "1.65.0"
+  }
+}

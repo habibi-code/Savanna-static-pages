@@ -6,4 +6,5 @@ _tooling
 .env.*
 !.env.example
 /backend/node_modules/
+/tests/browser/node_modules/
 /backend/output/

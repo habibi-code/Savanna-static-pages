@@ -57,18 +57,18 @@ Everything else is inert.
 
 ## Inklu — Learning without barriers
 
-Open `pages/concept-with-navigation.html` directly in a browser. The **Inklu — Learning without barriers**
-button follows the lesson title, “The Future of the VA Industry”. Simplified English and visual
-descriptions display fixed demo examples. To use live Amharic translation, serve the site
-with the local Node backend and activate **Translate lesson**. See the
-[backend setup and testing instructions](backend/README.md#live-lesson-translation).
+Open the floating **Inklu Companion** button on the lesson page. Its desktop drawer
+becomes a full-screen reader on small screens. **Simplify** and **Describe** show
+labeled demo content. **Translate** sends the lesson to Addis AI only when the
+learner activates **Translate with Addis AI**. Use the local backend for live
+translation and speech. [Backend setup and testing instructions](backend/README.md#live-lesson-translation)
 
 To embed the companion, copy `assets/learning-companion/`, load `lesson-content.js`,
 `amharic-audio.js`, and `learning-companion.js` in order as classic scripts, and place `<alx-learning-companion></alx-learning-companion>`
 at the desired location. The widget loads its neighboring stylesheet into its shadow root.
 The debug preview and Amharic translation both read the current lesson through the extractor.
 The translation action sends its title and body to the same-origin `POST /api/translate` endpoint.
-After translation, **Listen in Amharic** checks the selected passage for saved audio or
+After translation, each passage has a **Listen** button. It checks for saved audio or
 shows a cost estimate. A new clip requires **Confirm generation**. See the
 [speech controls and testing guide](backend/README.md#amharic-audio).
 
@@ -89,36 +89,41 @@ While the panel and preview are open, a mutation observer refreshes the preview 
 lesson changes, including when its content container is replaced. The mount must persist or
 be included in the replacement page. Opening the preview again reads the latest content.
 
-### Offline fixture
+### Developer preview
 
-Open `tests/lesson-content.html` directly. Open **Inklu — Learning without barriers**, expand **Extracted
-lesson content (debug preview)**, and use **Active test lesson** to switch examples. The meeting
-brief should show a numbered list and a banner description. The schedule should show a bulleted
-list and one missing-alt marker. Check that switching back restores only the first lesson,
-and that **No lesson loaded** clears the preview. Test navigation, controls, and footer text
-should never appear in the preview.
+Append `?inkluDebug=1` to a lesson or fixture URL to enable the **Extracted lesson
+content** disclosure inside the drawer. Close the drawer to change lessons in
+`tests/lesson-content.html`, then reopen it to inspect the new content. The
+production UI hides this disclosure by default.
 
 ### Keyboard and screen reader checks
 
-1. Open the lesson and Tab to **Inklu — Learning without barriers**. Look for the focus outline. With NVDA
-   and Firefox or Chrome, use the buttons list or navigate from the lesson heading. Listen for
-   the button name and its collapsed state.
-2. Press Enter or Space. The button should report expanded and keep focus. Tab into
-   **Choose a lesson format**. On first use, press Space to select **Simplified English**.
-3. Use the arrow keys to select **Amharic**. Focus stays on the radio. Tab to **Translate lesson**.
-   After approving live spending, press Enter and listen for the loading and completion messages.
-   The button keeps focus and the result below has `lang="am"`. Amharic pronunciation depends on
-   installed voices and language-switching settings. Selecting **Visual content descriptions**
-   still announces its demo. Opening the panel and navigating options cost nothing.
-4. Tab to **Extracted lesson content (debug preview)** and press Enter or Space. Focus should
-   stay on the disclosure. Use the reader's browsing commands to read the title, headings,
-   lists and image labels. In the fixture, switch lessons with the preview open and listen for
-   a short status update. Focus should stay on the lesson picker.
-5. Tab past the preview or Shift+Tab back to the selected option. Press Escape inside the widget.
-   Focus should return to the collapsed button. The choices and response should disappear
-   from both the tab order and the screen reader's reading order.
-6. Reopen the panel and close it using the same button. Check the lesson's sidebar, course
-   dropdown, and curriculum accordion. Open the landing page and both homepages to confirm
-   that the companion appears only on the lesson.
+1. Tab to **Open Inklu learning companion** and press Enter or Space. The modal
+   announces its name and current lesson. Initial focus is on **Close Inklu**.
+2. Tab to the selected mode. Use Left/Right, Home, or End to switch tabs. Each
+   tab names its panel. In Translate, Tab to the translation action.
+3. After approving live spending, activate **Translate with Addis AI**. The result
+   heading introduces the Amharic passages. Tab to **Listen to passage 1** to
+   request a quote. Cancel returns focus to that passage. Confirming a new clip
+   makes its Play control available. The active passage also offers Stop.
+4. Escape or **Close Inklu** restores focus to the launcher. Reopening the same
+   lesson retains the translation. Leaving a mode or closing the drawer discards
+   pending audio approval and stops playback.
 
+### Offline browser tests
 
+Install backend dependencies once, then run the separate UI test package from the
+repository root. The tests use an installed Chrome browser. To use another Chromium
+binary, set `INKLU_CHROMIUM` to its full path. The browser tests use a keyless server
+and mocked API responses.
+
+```powershell
+npm.cmd ci --prefix backend
+npm.cmd test --prefix backend
+npm.cmd ci --prefix tests/browser
+npm.cmd test --prefix tests/browser
+```
+
+The desktop and mobile captures in `docs/screenshots/inklu/` use sample Amharic text
+and a mock audio estimate. To regenerate them, set `INKLU_SCREENSHOTS` to the absolute
+output directory before running the browser tests.
