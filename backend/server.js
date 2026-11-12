@@ -2,8 +2,8 @@ import { createServer } from 'node:http';
 import { readFile } from 'node:fs/promises';
 import { extname, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
-import { APIConnectionTimeoutError } from 'addisai';
-import { createClient, translateEnglish } from './translation.js';
+import { APIConnectionError, APIConnectionTimeoutError } from 'addisai';
+import { createClient, translateEnglish, UserMessage } from './translation.js';
 import { SpeechError, speechService } from './speech.js';
 
 const maxBytes = 64 * 1024;
@@ -36,28 +36,63 @@ function readText(body, maxLength) {
   return body.text.replace(/\r\n?/g, '\n').trim();
 }
 
-// Keep paragraphs together where possible. A near-limit break also bounds the number of calls.
+const sectionLimit = 1500; // UTF-16 code units, consistent with the request limit.
+
 function* sections(text) {
-  while (text.length > 5000) {
-    let end = text.lastIndexOf('\n', 5000);
-    if (end < 4000) end = text.lastIndexOf(' ', 5000);
-    if (end < 4000) end = /[\uD800-\uDBFF]/.test(text[4999]) ? 4999 : 5000;
-    yield text.slice(0, end).trimEnd();
-    text = text.slice(end).trimStart();
+  while (text.length > sectionLimit) {
+    let paragraph, sentence, word;
+    for (const gap of text.matchAll(/\s+/gu)) {
+      if (gap.index > sectionLimit) break;
+      word = gap;
+      // Prefer complete blocks and sentences in the last third of the budget.
+      if (gap.index < sectionLimit * 2 / 3) continue;
+      if (gap[0].includes('\n')) paragraph = gap;
+      else if (/[.!?]["'”’»)\]]*$/u.test(text.slice(0, gap.index))) sentence = gap;
+    }
+    const boundary = paragraph ?? sentence ?? word;
+    let end = boundary?.index ?? sectionLimit;
+    if (!boundary && /[\uD800-\uDBFF]/u.test(text[end - 1])) end--;
+    const separator = boundary?.[0] ?? '';
+    yield { text: text.slice(0, end), separator };
+    text = text.slice(end + separator.length);
   }
-  if (text) yield text;
+  if (text) yield { text, separator: '' };
+}
+
+// Provider messages, headers, response bodies, and even arbitrary error codes may contain text.
+// Emit only numeric metadata, our own categories, and documented allowlisted codes.
+const translationCodes = new Set(['text_too_long', 'translation_incomplete', 'invalid_input', 'invalid_json']);
+
+function logTranslationFailure(error, text, sectionIndex, sectionCount, started) {
+  const status = error?.status;
+  const providerStatus = Number.isInteger(status) && status >= 100 && status <= 599 ? status : null;
+  let errorType = 'unexpected_error';
+  if (error instanceof APIConnectionTimeoutError) errorType = 'sdk_timeout';
+  else if (error instanceof APIConnectionError) errorType = 'connection_error';
+  else if (error instanceof UserMessage) errorType = 'invalid_translation';
+  else if (providerStatus !== null) errorType = 'provider_http_error';
+  console.warn(JSON.stringify({
+    event: 'translation_section_failed', sectionIndex, sectionCount,
+    characterCount: [...text].length, utf16Units: text.length,
+    elapsedMs: Math.round(performance.now() - started), errorType, providerStatus,
+    providerCode: translationCodes.has(error?.code) ? error.code : null,
+  }));
 }
 
 function cachedTranslator(client) {
   const saved = new Map();
   const pending = new Map();
-  return async text => {
+  return async (text, sectionIndex, sectionCount) => {
     if (saved.has(text)) return saved.get(text);
     if (pending.has(text)) return pending.get(text);
+    const started = performance.now();
     const request = translateEnglish(client, text).then(result => {
       if (saved.size >= 128) saved.delete(saved.keys().next().value);
       saved.set(text, result);
       return result;
+    }, error => {
+      logTranslationFailure(error, text, sectionIndex, sectionCount, started);
+      throw error;
     }).finally(() => pending.delete(text));
     pending.set(text, request);
     return request;
@@ -142,11 +177,12 @@ export function makeServer(client, directory = fileURLToPath(new URL('./output/'
         return;
       }
       const results = [];
-      for (const section of sections(text)) {
+      const parts = [...sections(text)];
+      for (const [index, section] of parts.entries()) {
         if (res.destroyed) return;
-        results.push(await translate(section));
+        results.push(await translate(section.text, index + 1, parts.length), section.separator);
       }
-      json(res, 200, { translation: results.join('\n\n') });
+      json(res, 200, { translation: results.join('') });
     } catch (error) {
       if (res.destroyed) return;
       if (error instanceof HttpError || error instanceof SpeechError) return json(res, error.status, { error: error.message });

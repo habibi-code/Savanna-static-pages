@@ -38,7 +38,11 @@ The browser posts JSON `{"text":"Check both time zones."}` to `/api/translate`.
 Success returns `{"translation":"…"}`; errors return a safe `error` string and
 an HTTP status. Requests accept at most 64 KiB of JSON and 16,000 UTF-16 code
 units of text. The backend splits long text into ordered sections of at most
-5,000 units with a 20-second SDK timeout per section and zero automatic retries.
+1,500 units. It prefers paragraph and sentence boundaries near the limit and
+retains the original whitespace between translated sections. Each uncached
+section makes one sequential provider request with a 20-second SDK timeout
+and zero automatic retries. Smaller sections give each call less text to
+translate but can increase the number of paid requests for a long lesson.
 The local limit is eight POST requests per minute across all tabs. Concurrent
 identical sections share one in-flight call. The last 128 successful sections
 stay in process memory until eviction or restart. A failed section is eligible

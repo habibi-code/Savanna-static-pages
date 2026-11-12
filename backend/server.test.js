@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { once } from 'node:events';
 import { request } from 'node:http';
 import test from 'node:test';
-import { APIConnectionTimeoutError } from 'addisai';
+import AddisAI, { APIConnectionTimeoutError } from 'addisai';
 import { makeServer } from './server.js';
 
 const amharic = 'ሁለቱንም የሰዓት ሰቆች ያረጋግጡ።';
@@ -40,17 +40,93 @@ test('concurrent identical lessons share a translation and later requests reuse 
   assert.deepEqual(calls, [{ text: 'Check both time zones.', from: 'en', to: 'am' }]);
 });
 
-test('long lessons preserve order and a retry reuses successful sections', async t => {
-  const paragraph = 'a'.repeat(4600);
-  let failed = false;
+test('a long lesson runs in order, stops on failure and reuses successes on manual retry', async t => {
+  const paragraphs = Array.from({ length: 5 }, (_, i) =>
+    'Step ' + (i + 1) + '. ' + 'Compare the two calendars before sending an invitation. '.repeat(25).trimEnd());
+  const lesson = paragraphs.join('\n\n');
+  assert.ok(lesson.length > 7000);
+  let active = 0;
+  let fail = true;
   const { post, calls } = await start(t, async ({ text }) => {
-    if (text === 'last' && !failed) { failed = true; throw new Error('private details'); }
-    return { text: text === 'last' ? 'ሁለት' : 'አንድ' };
+    assert.equal(++active, 1);
+    await new Promise(resolve => setImmediate(resolve));
+    active--;
+    if (fail && text === paragraphs[2]) throw new Error('private details');
+    return { text: 'ክፍል ' + (paragraphs.indexOf(text) + 1) };
   });
-  const fullLesson = paragraph + '\n' + 'b'.repeat(5000) + '\nlast';
-  assert.equal((await post(fullLesson)).status, 502);
-  assert.deepEqual(await (await post(fullLesson)).json(), { translation: 'አንድ\n\nአንድ\n\nሁለት' });
-  assert.deepEqual(calls.map(call => call.text.length), [4600, 5000, 4, 4]);
+  assert.equal((await post(lesson)).status, 502);
+  assert.deepEqual(calls.map(call => call.text), paragraphs.slice(0, 3));
+  fail = false;
+  assert.deepEqual(await (await post(lesson)).json(), { translation: 'ክፍል 1\n\nክፍል 2\n\nክፍል 3\n\nክፍል 4\n\nክፍል 5' });
+  assert.deepEqual(calls.map(call => call.text), [...paragraphs.slice(0, 3), ...paragraphs.slice(2)]);
+});
+
+test('splits at paragraph, sentence, then word boundaries and restores the exact separators', async t => {
+  const { post, calls } = await start(t, async ({ text }) => ({ text: 'አ' + text }));
+  const opening = 'Check both time zones. '.repeat(50).trimEnd();
+  const next = 'Read the next invitation carefully. '.repeat(14).trimEnd();
+  for (const [left, gap, right] of [
+    [opening, '\n\n  ', next],
+    [opening + ' Ready?”', '  ', 'Review the proposed meeting time '.repeat(16).trimEnd()],
+    ['a'.repeat(1497), '\t', 'last'],
+    ['x'.repeat(1499), '', '😀end'],
+    ['x'.repeat(1500), '', 'end'],
+  ]) {
+    const before = calls.length;
+    const response = await post(left + gap + right);
+    assert.deepEqual(await response.json(), { translation: 'አ' + left + gap + 'አ' + right });
+    assert.deepEqual(calls.slice(before).map(call => call.text), [left, right]);
+  }
+});
+
+test('failed second section logs only safe metadata and preserves the public 502', async t => {
+  const warnings = t.mock.method(console, 'warn', () => {});
+  const marker = 'private-test-marker';
+  const sdk = new AddisAI({ apiKey: marker, maxRetries: 0, logLevel: 'off', fetch: async (_url, options) => {
+    const { text } = JSON.parse(options.body);
+    if (!text.includes(marker)) return Response.json({ data: { translation: amharic } });
+    return Response.json({ error: { code: 'translation_incomplete', message: marker, details: [marker] } },
+      { status: 502, headers: { 'x-private': marker } });
+  } });
+  const { post, calls } = await start(t, (input, options) => sdk.translate.create(input, options));
+  const second = marker + '😀';
+  const response = await post('a'.repeat(1500) + '\n' + second);
+  assert.equal(response.status, 502);
+  assert.deepEqual(await response.json(), { error: 'Translation service is unavailable.' });
+  assert.equal(calls.length, 2);
+  assert.equal(warnings.mock.callCount(), 1);
+  const args = warnings.mock.calls[0].arguments;
+  assert.equal(args.length, 1);
+  const { elapsedMs, ...record } = JSON.parse(args[0]);
+  assert.ok(Number.isInteger(elapsedMs) && elapsedMs >= 0);
+  assert.deepEqual(record, { event: 'translation_section_failed', sectionIndex: 2, sectionCount: 2,
+    characterCount: [...second].length, utf16Units: second.length,
+    errorType: 'provider_http_error', providerStatus: 502, providerCode: 'translation_incomplete' });
+  assert.ok(!args[0].includes(marker));
+});
+
+test('diagnostics distinguish provider size rejection, invalid output, transport failure and SDK timeout', async t => {
+  const warnings = t.mock.method(console, 'warn', () => {});
+  const sdkResponses = [
+    () => Response.json({ error: { code: 'text_too_long' } }, { status: 413 }),
+    () => Response.json({ data: { translation: '' } }),
+    () => { throw new Error('private transport details'); },
+    () => { throw new DOMException('private timeout details', 'TimeoutError'); },
+    () => Response.json({ error: { code: 'private unknown code', message: 'private detail' } }, { status: 500 }),
+  ];
+  const sdk = new AddisAI({ apiKey: 'offline-only', maxRetries: 0, logLevel: 'off',
+    fetch: async () => sdkResponses.shift()() });
+  const { post } = await start(t, (input, options) => sdk.translate.create(input, options));
+  for (const [http, type, upstream, code] of [[502, 'provider_http_error', 413, 'text_too_long'],
+    [502, 'invalid_translation', null, null], [502, 'connection_error', null, null],
+    [504, 'sdk_timeout', null, null], [502, 'provider_http_error', 500, null]]) {
+    assert.equal((await post('private lesson text')).status, http);
+    const logged = warnings.mock.calls.at(-1).arguments[0];
+    assert.ok(!logged.includes('private'));
+    const event = JSON.parse(logged);
+    assert.deepEqual([event.sectionIndex, event.errorType, event.providerStatus, event.providerCode], [1, type, upstream, code]);
+  }
+  assert.equal(warnings.mock.callCount(), 5);
 });
 
 test('invalid input, unsupported media, wrong method and foreign origins never reach Addis', async t => {
