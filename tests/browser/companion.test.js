@@ -47,6 +47,7 @@ async function setup(t, options = {}) {
     calls.push([url.pathname, route.request().postDataJSON()]);
     if (url.pathname === '/api/translate') {
       await options.waitTranslation;
+      if (options.translationError) return route.fulfill({ status: options.translationError, json: { error: 'Mock failure' } });
       return route.fulfill({ json: { translation: options.text ?? sample } });
     }
     if (options.speech) return options.speech(route, url.pathname);
@@ -202,6 +203,70 @@ test('translation error is retryable and stale audio estimates cannot reappear',
   await launcher.click();
   assert(await button('Listen to passage 1').isEnabled());
   assert.equal(await button('Confirm generation').count(), 0);
+});
+
+for (const [code, mode, message] of [
+  [200, 'Simplify', 'Amharic translation ready.'],
+  [504, 'Describe', 'Translation timed out. You can try again.'],
+  [502, 'Simplify', 'Translation failed. You can try again.'],
+]) {
+  test('translation HTTP ' + code + ' reaches the live region while reading ' + mode, async t => {
+    const gate = Promise.withResolvers();
+    const { page, launcher, panel, calls, button } = await setup(t, {
+      waitTranslation: gate.promise, translationError: code === 200 ? undefined : code,
+    });
+    await launcher.press('Enter');
+    await button('Translate with Addis AI').press('Enter');
+    const translate = page.getByRole('tab', { name: 'Translate' });
+    await translate.press(mode === 'Simplify' ? 'ArrowLeft' : 'ArrowRight');
+    const selected = page.getByRole('tab', { name: mode, selected: true });
+    const status = panel.getByRole('status');
+    await status.filter({ hasText: 'Translating the lesson' }).waitFor();
+    gate.resolve();
+    await status.filter({ hasText: message }).waitFor();
+    assert.deepEqual(await status.allTextContents(), [message]);
+    assert(await selected.evaluate(el => el.matches(':focus')));
+    await selected.press(mode === 'Simplify' ? 'ArrowRight' : 'ArrowLeft');
+    assert.deepEqual(await status.allTextContents(), [message]);
+    assert(await (code === 200 ? button('Listen to passage 1') : button('Translate with Addis AI')).isEnabled());
+    assert.equal(calls.length, 1);
+  });
+}
+
+test('closing during translation keeps the result without announcing a background success', async t => {
+  const gate = Promise.withResolvers();
+  const { page, panel, launcher, calls, button } = await setup(t, { waitTranslation: gate.promise });
+  await launcher.press('Enter');
+  await button('Translate with Addis AI').press('Enter');
+  await page.keyboard.press('Escape');
+  await panel.waitFor({ state: 'hidden' });
+  gate.resolve();
+  await page.locator('[data-passage]').first().waitFor({ state: 'attached' });
+  assert.equal(await page.locator('#translation-status').textContent(), '');
+  assert(await launcher.evaluate(el => el.matches(':focus')));
+  await launcher.press('Enter');
+  assert(await button('Listen to passage 1').isVisible());
+  assert.equal(calls.length, 1);
+});
+
+test('changing lessons cancels the old request without a timeout or stale result announcement', async t => {
+  const gate = Promise.withResolvers();
+  const { page, panel, launcher, button } = await setup(t, {
+    path: '/tests/lesson-content.html', waitTranslation: gate.promise,
+  });
+  await launcher.press('Enter');
+  await button('Translate with Addis AI').press('Enter');
+  await page.getByRole('tab', { name: 'Translate' }).press('ArrowRight');
+  const aborted = page.waitForEvent('requestfailed', req => req.url().endsWith('/api/translate'));
+  await page.locator('#example').evaluate(el => { el.value = 'schedule'; el.dispatchEvent(new Event('change')); });
+  gate.resolve();
+  await aborted;
+  const status = panel.getByRole('status');
+  await status.filter({ hasText: 'The lesson changed.' }).waitFor();
+  await page.keyboard.press('ArrowLeft');
+  assert.equal(await status.textContent(), 'The lesson changed. You can translate the new lesson.');
+  assert.equal(await button('Listen to passage 1').count(), 0);
+  assert(await button('Translate with Addis AI').isEnabled());
 });
 
 test('mode transitions preserve one translation; audio stays scoped to one passage and one approval', async t => {

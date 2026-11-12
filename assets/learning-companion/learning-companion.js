@@ -61,12 +61,12 @@
                 <p id="translation-help">Read this lesson in Amharic and listen to it one passage at a time.</p>
                 <button type="button" id="translate" class="primary" aria-describedby="translation-help">Translate with Addis AI <span aria-hidden="true">→</span></button>
               </div>
-              <p id="translation-status" role="status" aria-atomic="true"></p>
               <ol id="translation" aria-label="Translated passages"></ol>
             </section>
             <section role="tabpanel" id="visual" aria-labelledby="tab-visual" tabindex="0" hidden>
               <h3>Visual descriptions</h3><div class="demo"><span class="eyebrow">Demo content</span><p></p></div>
             </section>
+            <p id="translation-status" role="status" aria-atomic="true"></p>
             <details hidden>
               <summary>Extracted lesson content (debug preview)</summary>
               <p id="preview-status" role="status" aria-atomic="true"></p>
@@ -247,7 +247,7 @@
         if (root.activeElement === button) root.querySelector('#amharic h3').focus();
         root.getElementById('translate-action').hidden = true;
         status.classList.add('sr-only');
-        status.textContent = 'Amharic translation ready.';
+        status.textContent = root.getElementById('panel').open ? 'Amharic translation ready.' : '';
       } catch {
         if (this.request === controller) status.textContent = controller.signal.aborted
           ? 'Translation timed out. You can try again.' : 'Could not reach the translation service. You can try again.';
