@@ -186,7 +186,6 @@
       root.getElementById('translate-action').hidden = false;
       if (restore) root.getElementById('translate').focus();
       this.speech?.setTranslation('');
-      root.getElementById('translate').removeAttribute('aria-disabled');
       root.getElementById('translation').removeAttribute('aria-busy');
       root.getElementById('translation').textContent = '';
       root.getElementById('translation-status').textContent = message;
@@ -211,7 +210,6 @@
       this.watchLesson();
       const output = root.getElementById('translation');
       const button = root.getElementById('translate');
-      button.setAttribute('aria-disabled', 'true');
       output.setAttribute('aria-busy', 'true');
       status.textContent = 'Translating the lesson into Amharic…';
       // Leave focus on the action, including during a request or after an error.
@@ -255,7 +253,6 @@
         clearTimeout(timer);
         if (this.request === controller) {
           this.request = null;
-          button.removeAttribute('aria-disabled');
           output.removeAttribute('aria-busy');
         }
       }

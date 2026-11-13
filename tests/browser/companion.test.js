@@ -173,7 +173,11 @@ for (const [code, mode, message] of [
       waitTranslation: gate.promise, translationError: code === 200 ? undefined : code,
     });
     await launcher.press('Enter');
-    await button('Translate with Addis AI').press('Enter');
+    const action = button('Translate with Addis AI');
+    await action.press('Enter');
+    assert(await action.isEnabled());
+    assert(await action.evaluate(el => el.matches(':focus') && el.tabIndex >= 0));
+    await page.keyboard.press('Space');
     const translate = page.getByRole('tab', { name: 'Translate' });
     await translate.press(mode === 'Simplify' ? 'ArrowLeft' : 'ArrowRight');
     const selected = page.getByRole('tab', { name: mode, selected: true });
