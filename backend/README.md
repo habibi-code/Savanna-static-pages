@@ -24,7 +24,7 @@ state are free. Startup and automated tests make zero paid requests.
 2. **After approving live spend**, press Enter on **Translate lesson**. This sends
    the extracted title and body to Addis AI. Listen for the loading and completion
    status. On success, focus moves from the action to the result heading. Each Amharic
-   passage has its own Listen button.
+   passage has its own Generate Audio button.
 3. Close the drawer, switch the active lesson, and reopen it. The previous result clears. Activate the button to
    translate the new lesson. Returning to a previously translated lesson and pressing
    the button again uses the server cache while the entry is retained.
@@ -59,55 +59,50 @@ development; a shared deployment needs authentication and per-user spending limi
 
 ## Amharic audio
 
-Use the setup above, then open the [short lesson fixture](http://127.0.0.1:3000/tests/lesson-content.html).
-The same steps work on the [Savanna lesson](http://127.0.0.1:3000/pages/concept-with-navigation.html).
+After translation, press Enter or Space on **Generate Audio** for a passage. The
+button stays focusable while the status announces “Generating audio…”. Playback
+starts when the clip is ready.
+Tab to **Pause**, then Shift+Tab to **Play or resume**. **Stop** returns to the beginning.
+If the browser blocks playback, **Play or resume** starts the loaded clip without a new request.
+Changing passages, leaving Translate, replacing the lesson, or closing the drawer
+cancels pending playback. Loading and errors use the passage's polite status; the
+playing indicator stays outside the live region to avoid talking over Amharic.
 
-1. Open Inklu and select **Translate**. After approval for live translation,
-   activate **Translate with Addis AI**. Translation completion renders passage
-   cards and sends zero speech requests.
-2. Each passage contains up to 100 UTF-16 code units and has an inline **Listen**
-   button named for its passage number. Activate it with Enter or Space.
-   A saved MP3 enables **Play or resume**. Otherwise, the polite status announces the voice and
-   estimate. **Cancel** returns focus to the listening button and incurs no generation charge.
-3. Only after approving live audio spend, Tab to **Confirm generation** and press Enter.
-   Take as long as needed to review the estimate. If the token has expired,
-   Confirm refreshes the estimate for this passage. Approval applies only to
-   the displayed price and voice. A change requires another confirmation.
-   The server checks the price, balance and **1 ETB per clip** limit before generation.
-   When the clip is ready, activate **Play or resume**. Tab once to **Pause**.
-   Shift+Tab returns to **Play or resume** to continue from the paused position.
-   Stop returns to the beginning. Playback never advances to a new passage automatically.
-4. While playing, activate Listen on another passage, change modes, or close the
-   drawer. Playback stops. On a new lesson, translate again before requesting audio.
-   Reopening a previously generated passage with the same voice reuses the local MP3.
-   Switching away after confirmation does not reverse a provider charge already in progress.
-5. With a screen reader, check the passage-specific button names, the Amharic
-   language on each passage, the quote, and the loading, ready and error messages.
-   Listen to the start of a clip for overlapping speech when starting or resuming. Check that
-   completion leaves focus on the current control if you have navigated elsewhere.
+**Learner endpoint.** `POST /api/speech/listen` accepts only `{"text":"…"}`. It
+returns an MP3 from disk or generates one on demand. Host, same-origin and JSON checks still apply; limits are
+2 KiB per body, 240 UTF-16 units of text containing an Ethiopic letter, and eight
+requests per minute across tabs. The former HTTP estimate and generation routes
+are no longer available.
 
-**API.** `POST /api/speech/estimate` takes `{"text":"…"}` and returns either
-cached `audio/mpeg` bytes or a quote with `quoteId`, `voice`, `currency` and
-`estimatedCost`, plus `expiresAt` in Unix milliseconds. `POST /api/speech/generate` takes `{"quoteId":"…","confirmed":true}`
-and returns MP3 bytes. Each random quote ID expires after two minutes and can be
-redeemed once. It binds the exact passage, voice, format and price on the server.
-Both routes inherit the local Host, same-origin and JSON checks. Limits are 2 KiB
-per body, 240 units of Amharic-containing text, eight estimate requests and four
-generation requests per minute across tabs.
+**Storage and spending.** The server looks up the exact passage using the existing
+hashed MP3 filenames in Git-ignored `backend/output/`. It checks the preferred
+voice (`am-hamen`) first. If clips were prepared with a fallback voice, set
+`INKLU_CACHED_VOICES` in the server's `.env` to the additional comma-separated voice
+IDs and restart. Instances need the same cache files to serve the same clips.
 
-**Billing and storage.** At the list rate of 5 ETB per generated minute, six billable
-seconds would cost 0.50 ETB. Discounts can change the quote. The guard applies to
-the estimate; actual billing follows generated duration. Server-side voice discovery,
-quotes, and generation have deadlines of 10, 10 and 95 seconds respectively. The SDK
-clip download has a 20-second deadline. The CLI and HTTP service share the hashed MP3
-cache in Git-ignored `backend/output/` and the same provider request ID for identical
-inputs. Concurrent HTTP approvals for the same clip share a single generation.
-The browser receives audio bytes. Credentials, local paths and provider-signed URLs
-stay on the server. [Official Addis AI pricing](https://docs.addisassistant.com/docs/platform/pricing)
+Set `INKLU_TTS_ALLOWANCE_ETB` in `backend/.env` and restart the server. This is a
+cumulative allowance for automatic speech generation. The default is 0, which
+still permits playback from the cache. For example, 5 authorizes up to 5 ETB in
+estimated requests, accounting for charges already recorded. A fresh estimate must
+fit the remaining allowance and the 1 ETB per-clip limit, and the provider wallet
+must cover it. Actual duration-based charges can exceed the estimate.
 
-**Offline verification.** `npm.cmd test` uses mocked provider responses and temporary
-directories. It exercises confirmation, concurrent requests, replay, expiry, rate
-limits, cost and balance changes, and safe provider failures.
+The server reserves the estimate in `output/automatic-speech.json` before each
+paid call and replaces it with the reported charge when available. Keep this file
+with the MP3 cache across restarts. Identical pending requests share one result.
+The file lock serializes generation across processes using the same directory.
+If another generation holds the lock, a different passage can be retried later.
+After a crash, stop all writers and reconcile provider usage and outstanding
+reservations before removing a stale `automatic-speech.json.lock`. A retry after
+an uncertain response checks recent clip history using the original request ID.
+Unresolved reservations remain charged against the allowance until reconciled.
+Separate cache directories have independent allowances. CLI and translation usage
+are outside this allowance.
+
+**Offline verification.** From the repo root, run `npm.cmd test --prefix backend` and
+`npm.cmd test --prefix tests/browser`. The tests use mock providers or a keyless
+server; they exercise cache hits and misses, concurrent clicks, browser playback
+restrictions, focus, and failures without buying audio.
 
 ## Phase 3A CLI
 

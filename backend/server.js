@@ -4,7 +4,7 @@ import { extname, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { APIConnectionError, APIConnectionTimeoutError } from 'addisai';
 import { createClient, translateEnglish, UserMessage } from './translation.js';
-import { SpeechError, speechService } from './speech.js';
+import { automaticSpeech } from './automatic-speech.js';
 
 const maxBytes = 64 * 1024;
 class HttpError extends Error {
@@ -118,10 +118,10 @@ function json(res, status, body) {
   res.end(JSON.stringify(body));
 }
 
-export function makeServer(client, directory = fileURLToPath(new URL('./output/', import.meta.url))) {
+export function makeServer(client, directory = fileURLToPath(new URL('./output/', import.meta.url)), allowance = process.env.INKLU_TTS_ALLOWANCE_ETB) {
   const translate = cachedTranslator(client);
-  const speech = speechService(client, directory);
-  const limits = new Map([['/api/translate', 8], ['/api/speech/estimate', 8], ['/api/speech/generate', 4]]);
+  const speech = automaticSpeech(client, directory, allowance, process.env.INKLU_CACHED_VOICES);
+  const limits = new Map([['/api/translate', 8], ['/api/speech/listen', 8]]);
   const windows = new Map();
   return createServer({ requestTimeout: 15000, headersTimeout: 10000, connectionsCheckingInterval: 1000 }, async (req, res) => {
     const path = req.url.split('?')[0];
@@ -154,28 +154,14 @@ export function makeServer(client, directory = fileURLToPath(new URL('./output/'
         throw new HttpError(429, 'Too many requests. Try again in one minute.');
       }
       const body = await readJson(req, isSpeech ? 2048 : maxBytes);
-      const generate = path === '/api/speech/generate';
-      const text = generate ? null : readText(body, isSpeech ? 240 : 16000);
-      if (!client) throw new HttpError(503, 'Service is not configured.');
+      const text = readText(body, isSpeech ? 240 : 16000);
       if (isSpeech) {
-        let audioPath;
-        if (!generate) {
-          if (!/[\p{Script=Ethiopic}&&\p{Letter}]/v.test(text)) throw new HttpError(400, 'Select an Amharic passage.');
-          const offer = await speech.offer(text);
-          if (!offer.audioPath) return json(res, 200, offer);
-          audioPath = offer.audioPath;
-        } else {
-          if (body?.confirmed !== true || typeof body.quoteId !== 'string' ||
-              !/^[a-f0-9]{8}-[a-f0-9]{4}-4[a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/.test(body.quoteId) ||
-              Object.keys(body).length !== 2) {
-            throw new HttpError(400, 'Confirm the displayed quote before generating audio.');
-          }
-          audioPath = await speech.redeem(body.quoteId);
-        }
-        const audio = await readFile(audioPath);
+        if (!/[\p{Script=Ethiopic}&&\p{Letter}]/v.test(text)) throw new HttpError(400, 'Select an Amharic passage.');
+        const audio = await speech(text);
         if (!res.destroyed) res.writeHead(200, { 'Content-Type': 'audio/mpeg', 'Cache-Control': 'no-store' }).end(audio);
         return;
       }
+      if (!client) throw new HttpError(503, 'Service is not configured.');
       const results = [];
       const parts = [...sections(text)];
       for (const [index, section] of parts.entries()) {
@@ -185,15 +171,8 @@ export function makeServer(client, directory = fileURLToPath(new URL('./output/'
       json(res, 200, { translation: results.join('') });
     } catch (error) {
       if (res.destroyed) return;
-      if (error instanceof HttpError || error instanceof SpeechError) return json(res, error.status, { error: error.message });
-      if (isSpeech) {
-        let status = 502, message = 'Speech service is unavailable. Request a new estimate to retry.';
-        if (error instanceof APIConnectionTimeoutError || error.name === 'TimeoutError') { status = 504; message = 'The speech request timed out.'; }
-        else if (error.status === 402) { status = 402; message = 'Insufficient credit for speech generation.'; }
-        else if (error.status === 429) { status = 429; message = 'Speech service is busy. Try again later.'; }
-        else if ([400, 404, 422].includes(error.status)) { message = 'The service could not use this voice or passage. Request a fresh estimate.'; }
-        return json(res, status, { error: message });
-      }
+      if (error instanceof HttpError) return json(res, error.status, { error: error.message });
+      if (isSpeech) return json(res, 503, { error: 'Audio is temporarily unavailable.' });
       if (error instanceof APIConnectionTimeoutError) return json(res, 504, { error: 'Translation timed out.' });
       if (error.status === 429) return json(res, 429, { error: 'Translation service is busy. Try again later.' });
       if (error.status === 402) return json(res, 503, { error: 'Translation credit is unavailable.' });

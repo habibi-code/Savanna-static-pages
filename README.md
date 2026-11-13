@@ -68,8 +68,8 @@ To embed the companion, copy `assets/learning-companion/`, load `lesson-content.
 at the desired location. The widget loads its neighboring stylesheet into its shadow root.
 The debug preview and Amharic translation both read the current lesson through the extractor.
 The translation action sends its title and body to the same-origin `POST /api/translate` endpoint.
-After translation, each passage has a **Listen** button. It checks for saved audio or
-shows a cost estimate. A new clip requires **Confirm generation**. See the
+After translation, choose **Generate Audio** on a passage. Inklu plays a saved clip or
+generates one within the allowance configured on the server. See the
 [speech controls and testing guide](backend/README.md#amharic-audio).
 
 ### Lesson extraction
@@ -103,12 +103,12 @@ production UI hides this disclosure by default.
 2. Tab to the selected mode. Use Left/Right, Home, or End to switch tabs. Each
    tab names its panel. In Translate, Tab to the translation action.
 3. After approving live spending, activate **Translate with Addis AI**. The result
-   heading introduces the Amharic passages. Tab to **Listen to passage 1** to
-   request a quote. Cancel returns focus to that passage. Confirming a new clip
-   makes its Play control available. The active passage also offers Stop.
+   heading introduces the Amharic passages. Tab to **Generate Audio for passage 1** and press Space.
+   The clip plays when ready. Tab to **Pause**, then Shift+Tab to **Play or resume**.
+   **Stop** returns to the beginning. An audio error is announced without moving focus.
 4. Escape or **Close Inklu** restores focus to the launcher. Reopening the same
-   lesson retains the translation. Leaving a mode or closing the drawer discards
-   pending audio approval and stops playback.
+   lesson retains the translation. Leaving a mode or closing the drawer cancels
+   pending playback and stops playback.
 
 ### Offline browser tests
 
@@ -125,5 +125,5 @@ npm.cmd test --prefix tests/browser
 ```
 
 The desktop and mobile captures in `docs/screenshots/inklu/` use sample Amharic text
-and a mock audio estimate. To regenerate them, set `INKLU_SCREENSHOTS` to the absolute
+and a mock audio clip. To regenerate them, set `INKLU_SCREENSHOTS` to the absolute
 output directory before running the browser tests.

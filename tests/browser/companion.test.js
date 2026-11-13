@@ -50,10 +50,8 @@ async function setup(t, options = {}) {
       if (options.translationError) return route.fulfill({ status: options.translationError, json: { error: 'Mock failure' } });
       return route.fulfill({ json: { translation: options.text ?? sample } });
     }
-    if (options.speech) return options.speech(route, url.pathname);
-    if (url.pathname.endsWith('/estimate')) return route.fulfill({ json: { estimatedCost: 0.5, currency: 'ETB', voice: 'am-hamen', quoteId: 'offline' } });
-    assert.equal(url.pathname, '/api/speech/generate');
-    assert.deepEqual(calls.at(-1)[1], { confirmed: true, quoteId: 'offline' });
+    assert.equal(url.pathname, '/api/speech/listen');
+    if (options.speech) return options.speech(route);
     return route.fulfill({ contentType: 'audio/mpeg', body: mp3 });
   });
   const path = options.path ?? '/pages/concept-with-navigation.html';
@@ -118,70 +116,27 @@ test('selected mode has a contrasting indicator after focus leaves the tabs', as
   }
 });
 
-for (const scenario of ['same terms', 'price change', 'voice change', 'server conflict', 'drawer closed']) {
-  test('reviewing an audio quote: ' + scenario, async t => {
-    const start = Date.UTC(2026, 0, 1);
-    const refreshing = Promise.withResolvers();
-    const release = Promise.withResolvers();
-    let estimates = 0;
-    const attempts = [];
-    const { page, panel, launcher, button } = await setup(t, { speech: async (route, path) => {
-      const body = route.request().postDataJSON();
-      if (path.endsWith('/estimate')) {
-        assert.equal(body.text, sample.split('\n\n')[0]);
-        estimates++;
-        if (estimates === 2) {
-          refreshing.resolve();
-          await release.promise;
-        }
-        return route.fulfill({ json: { quoteId: 'quote-' + estimates, currency: 'ETB',
-          expiresAt: start + (estimates === 1 ? 120000 : 3600000),
-          estimatedCost: estimates > 1 && scenario === 'price change' ? 0.4 : 0.5,
-          voice: estimates > 1 && scenario === 'voice change' ? 'am-other' : 'am-hamen' } });
-      }
-      assert.equal(body.confirmed, true);
-      attempts.push(body.quoteId);
-      if (scenario === 'server conflict' && attempts.length === 1) {
-        return route.fulfill({ status: 409, json: { error: 'Quote invalidated.' } });
-      }
-      return route.fulfill({ contentType: 'audio/mpeg', body: mp3 });
-    } });
-    await page.clock.setFixedTime(new Date(start));
-    await launcher.press('Enter');
-    await button('Translate with Addis AI').press('Enter');
-    await button('Listen to passage 1').press('Space');
-    const confirm = button('Confirm generation');
-    await confirm.waitFor();
-    if (scenario !== 'server conflict') await page.clock.setFixedTime(new Date(start + 1800000));
-    assert.equal(estimates, 1);
-    assert.deepEqual(attempts, []);
-    await confirm.press('Enter');
-    await refreshing.promise;
-    await page.keyboard.press('Enter');
-    if (scenario === 'drawer closed') await page.keyboard.press('Escape');
-    release.resolve();
-    if (scenario === 'drawer closed') {
-      await launcher.press('Enter');
-      assert(await button('Listen to passage 1').isEnabled());
-      assert.equal(await confirm.count(), 0);
-      assert.deepEqual(attempts, []);
-      return;
-    }
-    if (scenario !== 'same terms') {
-      await panel.getByText(/Review the refreshed estimate/).waitFor();
-      assert(await confirm.evaluate(el => el.matches(':focus')));
-      assert((await panel.locator('#speech-status').innerText()).includes(scenario === 'price change' ? '0.4 ETB' :
-        scenario === 'voice change' ? 'am-other' : '0.5 ETB'));
-      assert.deepEqual(attempts, scenario === 'server conflict' ? ['quote-1'] : []);
-      await confirm.press('Enter');
-    }
-    await button('Play or resume passage 1').waitFor();
-    assert.equal(estimates, 2);
-    assert.deepEqual(attempts, scenario === 'server conflict' ? ['quote-1', 'quote-2'] : ['quote-2']);
+test('browser playback policy offers manual Play using the same downloaded clip', async t => {
+  const { page, panel, launcher, button, calls } = await setup(t);
+  await page.evaluate(() => {
+    const play = HTMLMediaElement.prototype.play;
+    HTMLMediaElement.prototype.play = function () {
+      HTMLMediaElement.prototype.play = play;
+      return Promise.reject(new DOMException('Blocked', 'NotAllowedError'));
+    };
   });
-}
+  await launcher.click();
+  await button('Translate with Addis AI').click();
+  await button('Generate Audio for passage 1').press('Enter');
+  await panel.getByRole('status').filter({ hasText: 'Audio ready. Choose Play or resume.' }).waitFor();
+  const play = button('Play or resume passage 1');
+  assert(await play.evaluate(el => el.matches(':focus')));
+  await play.press('Space');
+  await panel.getByText('Playing', { exact: true }).waitFor();
+  assert.deepEqual(calls.map(([path]) => path), ['/api/translate', '/api/speech/listen']);
+});
 
-test('translation error is retryable and stale audio estimates cannot reappear', async t => {
+test('translation error is retryable and closing the drawer cancels pending playback', async t => {
   const { page, launcher, panel, button } = await setup(t);
   await launcher.click();
   const action = button('Translate with Addis AI');
@@ -191,18 +146,20 @@ test('translation error is retryable and stale audio estimates cannot reappear',
   await action.press('Enter');
   const pending = Promise.withResolvers();
   const arrived = Promise.withResolvers();
-  await page.route('**/api/speech/estimate', async route => {
+  await page.route('**/api/speech/listen', async route => {
     arrived.resolve();
     await pending.promise;
-    await route.fulfill({ json: { currency: 'ETB', estimatedCost: 0.4, quoteId: 'stale', voice: 'test' } }).catch(() => {});
+    await route.fulfill({ contentType: 'audio/mpeg', body: mp3 }).catch(() => {});
   });
-  await button('Listen to passage 1').click();
+  await button('Generate Audio for passage 1').click();
   await arrived.promise;
+  const aborted = page.waitForEvent('requestfailed', req => req.url().endsWith('/api/speech/listen'));
   await button('Close Inklu').click();
   pending.resolve();
+  await aborted;
   await launcher.click();
-  assert(await button('Listen to passage 1').isEnabled());
-  assert.equal(await button('Confirm generation').count(), 0);
+  assert(await button('Generate Audio for passage 1').isEnabled());
+  assert.equal(await button('Pause passage 1').count(), 0);
 });
 
 for (const [code, mode, message] of [
@@ -228,7 +185,7 @@ for (const [code, mode, message] of [
     assert(await selected.evaluate(el => el.matches(':focus')));
     await selected.press(mode === 'Simplify' ? 'ArrowRight' : 'ArrowLeft');
     assert.deepEqual(await status.allTextContents(), [message]);
-    assert(await (code === 200 ? button('Listen to passage 1') : button('Translate with Addis AI')).isEnabled());
+    assert(await (code === 200 ? button('Generate Audio for passage 1') : button('Translate with Addis AI')).isEnabled());
     assert.equal(calls.length, 1);
   });
 }
@@ -245,7 +202,7 @@ test('closing during translation keeps the result without announcing a backgroun
   assert.equal(await page.locator('#translation-status').textContent(), '');
   assert(await launcher.evaluate(el => el.matches(':focus')));
   await launcher.press('Enter');
-  assert(await button('Listen to passage 1').isVisible());
+  assert(await button('Generate Audio for passage 1').isVisible());
   assert.equal(calls.length, 1);
 });
 
@@ -265,11 +222,11 @@ test('changing lessons cancels the old request without a timeout or stale result
   await status.filter({ hasText: 'The lesson changed.' }).waitFor();
   await page.keyboard.press('ArrowLeft');
   assert.equal(await status.textContent(), 'The lesson changed. You can translate the new lesson.');
-  assert.equal(await button('Listen to passage 1').count(), 0);
+  assert.equal(await button('Generate Audio for passage 1').count(), 0);
   assert(await button('Translate with Addis AI').isEnabled());
 });
 
-test('mode transitions preserve one translation; audio stays scoped to one passage and one approval', async t => {
+test('mode transitions preserve one translation; one Generate Audio activation plays the selected passage', async t => {
   const gate = Promise.withResolvers();
   const { page, launcher, panel, calls, button } = await setup(t, { waitTranslation: gate.promise });
   await launcher.click();
@@ -277,25 +234,17 @@ test('mode transitions preserve one translation; audio stays scoped to one passa
   await page.getByRole('tab', { name: 'Describe' }).click();
   await page.getByRole('tab', { name: 'Translate' }).click();
   gate.resolve();
-  const first = button('Listen to passage 1'), second = button('Listen to passage 2');
+  const first = button('Generate Audio for passage 1'), second = button('Generate Audio for passage 2');
   await first.waitFor();
   assert.equal(calls.length, 1);
   assert.equal(await panel.locator('.passage p[lang="am"]').count(), 4);
   assert.equal(await panel.getByRole('combobox').count(), 0);
-  await first.press('Space');
-  await button('Confirm generation').waitFor();
-  assert.equal(calls.at(-1)[1].text, sample.split('\n\n')[0]);
-  await button('Cancel').press('Enter');
-  assert(await first.evaluate(el => el.matches(':focus')));
-  await second.press('Enter');
-  await panel.getByText(/0.5 ETB/).waitFor();
-  assert(!calls.some(([path]) => path.endsWith('/generate')));
-  await button('Confirm generation').press('Enter');
-  const play = button('Play or resume passage 2');
   const playing = panel.getByText('Playing', { exact: true });
-  await play.press('Enter');
+  await second.press('Enter');
   await playing.waitFor();
-  assert(await play.evaluate(el => el.matches(':focus')));
+  assert.deepEqual(calls.at(-1), ['/api/speech/listen', { text: sample.split('\n\n')[1] }]);
+  assert(await second.evaluate(el => el.matches(':focus')));
+  assert.equal(await button('Confirm generation').count(), 0);
   assert.equal(await panel.locator('#speech-status').textContent(), '');
   assert.equal(await playing.evaluate(el => !!el.closest('[role="status"], [role="alert"], [aria-live]')), false);
   await page.keyboard.press('Tab');
@@ -307,65 +256,86 @@ test('mode transitions preserve one translation; audio stays scoped to one passa
   await playing.waitFor();
   await button('Stop Amharic audio').press('Enter');
   await panel.getByRole('status').filter({ hasText: 'Playback stopped.' }).waitFor();
-  await play.press('Enter');
+  await button('Play or resume passage 2').press('Enter');
   await playing.waitFor();
+  assert.equal(calls.length, 2);
   await first.click();
+  await panel.locator('.passage.active').getByText('Playing', { exact: true }).waitFor();
   assert(await second.isVisible());
   assert.equal(await panel.locator('.passage.active').count(), 1);
   await button('Close Inklu').click();
   await launcher.click();
   assert(await second.isVisible());
   assert.equal(calls.filter(([path]) => path === '/api/translate').length, 1);
-  assert.equal(calls.filter(([path]) => path.endsWith('/generate')).length, 1);
+  assert.equal(calls.filter(([path]) => path.endsWith('/listen')).length, 2);
 });
 
-test('audio preparation keeps the focused action busy and reports a failure with a usable retry', async t => {
-  const estimate = Promise.withResolvers();
-  const generation = Promise.withResolvers();
-  const { page, panel, launcher, button, calls } = await setup(t, { speech: async (route, path) => {
-    if (path.endsWith('/estimate')) {
-      await estimate.promise;
-      return route.fulfill({ json: { estimatedCost: 0.5, currency: 'ETB', voice: 'am-hamen', quoteId: 'offline' } });
+for (const [code, message] of [[502, 'Audio could not be loaded'], [503, 'Audio could not be loaded']]) {
+  test('audio HTTP ' + code + ': one pending request, learner-safe status and manual retry', async t => {
+    const gate = Promise.withResolvers();
+    let attempts = 0;
+    const { page, panel, launcher, button, calls } = await setup(t, { speech: async route => {
+      await gate.promise;
+      if (++attempts === 1) return route.fulfill({ status: code, json: { error: 'private quote: 0.5 ETB' } });
+      return route.fulfill({ contentType: 'audio/mpeg', body: mp3 });
+    } });
+    await launcher.press('Enter');
+    await button('Translate with Addis AI').press('Enter');
+    const listen = button('Generate Audio for passage 1');
+    await listen.press('Space');
+    const status = panel.getByRole('status');
+    await status.filter({ hasText: 'Generating audio' }).waitFor();
+    assert(await listen.isEnabled());
+    assert.equal(await listen.getAttribute('aria-busy'), 'true');
+    assert(await listen.evaluate(el => el.matches(':focus')));
+    await page.keyboard.press('Enter');
+    await listen.dblclick();
+    gate.resolve();
+    await status.filter({ hasText: message }).waitFor();
+    assert.equal(await listen.getAttribute('aria-busy'), null);
+    assert(await listen.evaluate(el => el.matches(':focus')));
+    assert.doesNotMatch(await panel.innerText(), /ETB|quote|confirm generation/i);
+    assert.deepEqual(calls.map(([path]) => path), ['/api/translate', '/api/speech/listen']);
+    await listen.press('Enter');
+    await button('Pause passage 1').waitFor();
+    assert.equal(attempts, 2);
+  });
+}
+
+for (const change of ['lesson', 'mode']) {
+  test('switching ' + change + ' cancels pending audio before it can play', async t => {
+    const gate = Promise.withResolvers(), arrived = Promise.withResolvers();
+    const { page, panel, launcher, button } = await setup(t, { path: '/tests/lesson-content.html', speech: async route => {
+      arrived.resolve();
+      await gate.promise;
+      await route.fulfill({ contentType: 'audio/mpeg', body: mp3 }).catch(() => {});
+    } });
+    await launcher.press('Enter');
+    await button('Translate with Addis AI').press('Space');
+    await button('Generate Audio for passage 1').press('Space');
+    await arrived.promise;
+    const aborted = page.waitForEvent('requestfailed', req => req.url().endsWith('/api/speech/listen'));
+    if (change === 'lesson') {
+      await page.locator('#example').evaluate(el => { el.value = 'schedule'; el.dispatchEvent(new Event('change')); });
+    } else {
+      await page.getByRole('tab', { name: 'Translate' }).press('ArrowRight');
     }
-    await generation.promise;
-    return route.fulfill({ status: 503, json: { error: 'Speech service is unavailable. Try again.' } });
-  } });
-  await launcher.press('Enter');
-  await button('Translate with Addis AI').press('Enter');
-  const listen = button('Listen to passage 1');
-  await listen.press('Space');
-  const status = panel.getByRole('status');
-  await status.filter({ hasText: 'Checking availability and cost' }).waitFor();
-  assert(await listen.isEnabled());
-  assert.equal(await listen.getAttribute('aria-busy'), 'true');
-  assert(await listen.evaluate(el => el.matches(':focus')));
-  await page.keyboard.press('Space');
-  estimate.resolve();
-  await status.filter({ hasText: '0.5 ETB' }).waitFor();
-  const confirm = button('Confirm generation');
-  await confirm.press('Enter');
-  await status.filter({ hasText: 'Preparing audio' }).waitFor();
-  assert(await confirm.isEnabled());
-  assert.equal(await confirm.getAttribute('aria-busy'), 'true');
-  assert(await confirm.evaluate(el => el.matches(':focus')));
-  await page.keyboard.press('Enter');
-  generation.resolve();
-  await status.filter({ hasText: 'Speech service is unavailable. Try again.' }).waitFor();
-  assert(await listen.evaluate(el => el.matches(':focus')));
-  assert.equal(await listen.getAttribute('aria-busy'), null);
-  assert.deepEqual(calls.map(([path]) => path), ['/api/translate', '/api/speech/estimate', '/api/speech/generate']);
-  await page.keyboard.press('Enter');
-  await confirm.waitFor();
-});
+    gate.resolve();
+    await aborted;
+    if (change === 'mode') await page.keyboard.press('ArrowLeft');
+    assert.equal(await panel.locator('.passage.active').count(), 0);
+    assert.equal(await button('Pause passage 1').count(), 0);
+  });
+}
 
 test('developer preview, missing lesson and stale translation cleanup', async t => {
   const { page, panel, launcher, button, calls } = await setup(t, { path: '/tests/lesson-content.html?inkluDebug=1' });
   await launcher.click();
   await button('Translate with Addis AI').click();
-  await button('Listen to passage 1').waitFor();
+  await button('Generate Audio for passage 1').waitFor();
   await page.locator('#example').evaluate(el => { el.value = 'schedule'; el.dispatchEvent(new Event('change')); });
   await panel.getByText('Reading a weekly schedule', { exact: true }).waitFor();
-  assert.equal(await button('Listen to passage 1').count(), 0);
+  assert.equal(await button('Generate Audio for passage 1').count(), 0);
   await panel.locator('summary').click();
   await panel.locator('#preview').getByText(/Check both time zones/).waitFor();
   await page.locator('#example').evaluate(el => { el.value = 'empty'; el.dispatchEvent(new Event('change')); });
@@ -384,15 +354,15 @@ for (const [name, viewport] of [['desktop', { width: 1440, height: 900 }], ['mob
     }
     await launcher.click();
     await button('Translate with Addis AI').click();
-    await button('Listen to passage 4').waitFor();
+    await button('Generate Audio for passage 4').waitFor();
     assert(await panel.evaluate(el => el.scrollWidth <= el.clientWidth + 1));
     const rect = await panel.boundingBox();
     assert(name === 'mobile' ? rect.width === viewport.width : rect.x > viewport.width / 2);
     if (process.env.INKLU_SCREENSHOTS) {
       await mkdir(process.env.INKLU_SCREENSHOTS, { recursive: true });
       if (name === 'mobile') {
-        await button('Listen to passage 1').click();
-        await button('Confirm generation').waitFor();
+        await button('Generate Audio for passage 1').click();
+        await panel.getByText('Playing', { exact: true }).waitFor();
       }
       await page.evaluate(() => document.querySelector('alx-learning-companion').shadowRoot.activeElement?.blur());
       await page.evaluate(() => document.fonts.ready);
@@ -407,10 +377,10 @@ test('narrow layout, enlarged type, long unbroken text, forced colors and reduce
   await page.evaluate(() => { document.documentElement.style.fontSize = '200%'; });
   await launcher.press('Enter');
   await button('Translate with Addis AI').click();
-  await button('Listen to passage 4').waitFor();
+  await button('Generate Audio for passage 4').waitFor();
   assert(await panel.evaluate(el => el.scrollWidth <= el.clientWidth + 1));
   assert.equal(await panel.evaluate(el => getComputedStyle(el).animationName), 'none');
-  await button('Listen to passage 1').press('Enter');
-  await button('Confirm generation').focus();
-  assert(await button('Confirm generation').evaluate(el => getComputedStyle(el).outlineStyle === 'solid'));
+  await button('Generate Audio for passage 1').press('Enter');
+  await button('Pause passage 1').focus();
+  assert(await button('Pause passage 1').evaluate(el => getComputedStyle(el).outlineStyle === 'solid'));
 });

@@ -1,7 +1,7 @@
 (() => {
   'use strict';
 
-  // Short passages let a learner approve individual clips from a long lesson.
+  // Keep the same passage boundaries used to prepare cached clips.
   function passages(text) {
     const parts = [];
     let rest = text.replace(/\s+/gu, ' ').trim();
@@ -15,45 +15,14 @@
     return parts;
   }
 
-  class SpeechRequestError extends Error {
-    constructor(status, message) { super(message); this.status = status; }
-  }
-
-  async function requestSpeech(action, body, signal) {
-    const response = await fetch('/api/speech/' + action, {
+  async function audioForPassage(text, signal) {
+    const response = await fetch('/api/speech/listen', {
       method: 'POST', headers: { 'Content-Type': 'application/json' }, signal, redirect: 'error',
-      body: JSON.stringify(body),
+      body: JSON.stringify({ text }),
     });
-    if (!response.ok) {
-      const detail = await response.json().catch(() => ({}));
-      throw new SpeechRequestError(response.status, typeof detail?.error === 'string' ? detail.error : 'Speech is unavailable. Try again.');
-    }
-    if (response.headers.get('Content-Type')?.startsWith('audio/mpeg')) return response.blob();
-    const offer = await response.json();
-    if (action !== 'estimate' || typeof offer.quoteId !== 'string' || typeof offer.voice !== 'string' ||
-        offer.currency !== 'ETB' || !Number.isFinite(offer.estimatedCost) ||
-        offer.estimatedCost < 0 || offer.estimatedCost > 1) throw new Error();
-    return offer;
-  }
-
-  async function audioForPassage(text, approval, signal) {
-    const estimate = () => requestSpeech('estimate', { text }, signal);
-    if (!approval) return estimate();
-
-    let quote = approval;
-    if (Date.now() >= approval.expiresAt) {
-      quote = await estimate();
-      // This click approved only the displayed passage, price and voice.
-      if (quote instanceof Blob || quote.estimatedCost !== approval.estimatedCost || quote.voice !== approval.voice) return quote;
-    }
-    signal.throwIfAborted();
-    try {
-      return await requestSpeech('generate', { quoteId: quote.quoteId, confirmed: true }, signal);
-    } catch (error) {
-      // The server can invalidate a token or detect a new price during redemption.
-      if (!(error instanceof SpeechRequestError) || error.status !== 409) throw error;
-      return estimate();
-    }
+    if (response.status === 429) return { message: 'Too many audio requests. Try again in one minute.' };
+    if (!response.ok || !response.headers.get('Content-Type')?.startsWith('audio/mpeg')) throw new Error();
+    return { clip: await response.blob() };
   }
 
   window.InkluAmharicAudio = class {
@@ -64,52 +33,37 @@
           <button type="button" data-action="pause" hidden>Pause</button>
           <button type="button" data-action="stop" aria-label="Stop Amharic audio" hidden>Stop</button>
           <span class="playing" hidden>Playing</span>
-          <p role="status" id="speech-status" aria-atomic="true"></p>
-          <div class="quote-actions" role="group" hidden>
-            <button type="button" data-action="confirm" aria-describedby="speech-status">Confirm generation</button>
-            <button type="button" data-action="cancel">Cancel</button>
-          </div>`;
+          <p role="status" id="speech-status" aria-atomic="true"></p>`;
       this.container = container;
       this.pauseButton = this.tools.querySelector('[data-action="pause"]');
       this.playing = this.tools.querySelector('.playing');
       this.stopButton = this.tools.querySelector('[data-action="stop"]');
-      this.confirm = this.tools.querySelector('[data-action="confirm"]');
       this.status = this.tools.querySelector('[role="status"]');
       container.addEventListener('click', event => {
         const button = event.target.closest('button[data-passage]');
-        if (!button) return;
+        if (!button || event.detail > 1) return;
         if (button !== this.listen) {
           this.deactivate();
           this.listen = button;
           this.pauseButton.setAttribute('aria-label', 'Pause passage ' + button.dataset.passage);
-          this.confirm.parentElement.setAttribute('aria-label', 'Audio confirmation for passage ' + button.dataset.passage);
           const card = button.closest('li');
           card.classList.add('active');
           card.append(this.tools);
           this.text = card.querySelector('[lang="am"]').textContent;
         }
         if (this.request) return;
-        if (this.quote) this.confirm.focus();
-        else if (this.audio) this.play();
-        else this.fetchAudio(false);
+        if (this.audio) this.play();
+        else this.fetchAudio();
       });
-      this.confirm.addEventListener('keydown', event => {
-        if (event.key === 'Enter' && event.repeat) event.preventDefault();
-      });
-      this.confirm.addEventListener('click', event => {
-        if (event.detail <= 1 && this.quote && !this.request) this.fetchAudio(true);
-      });
-      this.cancel = this.tools.querySelector('[data-action="cancel"]');
-      this.cancel.addEventListener('click', () => {
-        if (this.request) return;
-        this.reset('Audio request cancelled.');
-        this.listen.focus();
+      container.addEventListener('keydown', event => {
+        if (event.repeat && event.key === 'Enter' && event.target.closest('button[data-passage]')) event.preventDefault();
       });
       this.pauseButton.addEventListener('click', () => this.audio?.pause());
       this.stopButton.addEventListener('click', () => {
         if (!this.audio) return;
         this.audio.pause();
         this.audio.currentTime = 0;
+        this.setPassageAction('Play or resume');
         this.setStatus('Playback stopped.');
       });
     }
@@ -124,9 +78,9 @@
         card.firstElementChild.textContent = 'Passage ' + String(index + 1).padStart(2, '0');
         card.querySelector('p').textContent = part;
         const button = card.querySelector('button');
-        button.textContent = 'Listen';
+        button.textContent = 'Generate Audio';
         button.dataset.passage = String(index + 1);
-        button.setAttribute('aria-label', 'Listen to passage ' + (index + 1));
+        button.setAttribute('aria-label', 'Generate Audio for passage ' + (index + 1));
         return card;
       }));
     }
@@ -142,7 +96,6 @@
     reset(message) {
       this.request?.abort();
       this.request = null;
-      this.quote = null;
       if (this.audio) {
         const audio = this.audio;
         this.audio = null;
@@ -152,19 +105,16 @@
         audio.load();
         URL.revokeObjectURL(url);
       }
-      this.confirm.parentElement.hidden = true;
-      this.confirm.removeAttribute('aria-busy');
-      this.cancel.hidden = false;
       this.pauseButton.hidden = true;
       this.stopButton.hidden = true;
       this.listen.removeAttribute('aria-busy');
-      this.setPassageAction('Listen');
+      this.setPassageAction('Generate Audio');
       this.setStatus(message);
     }
 
     setPassageAction(action) {
       this.listen.textContent = action;
-      this.listen.setAttribute('aria-label', (action === 'Listen' ? 'Listen to' : action) + ' passage ' + this.listen.dataset.passage);
+      this.listen.setAttribute('aria-label', (action === 'Generate Audio' ? 'Generate Audio for' : action) + ' passage ' + this.listen.dataset.passage);
     }
 
     setStatus(message) {
@@ -178,77 +128,61 @@
       try {
         await audio.play();
       } catch (error) {
-        if (audio === this.audio && error.name !== 'AbortError') this.setStatus('Playback could not start. Try Play again.');
+        if (audio !== this.audio || error.name === 'AbortError') return;
+        this.setPassageAction('Play or resume');
+        this.setStatus(error.name === 'NotAllowedError' ? 'Audio ready. Choose Play or resume.' : 'Playback could not start. Try Play again.');
       }
     }
 
-    async fetchAudio(confirmed) {
+    async fetchAudio() {
       const controller = new AbortController();
       this.request = controller;
-      const timer = setTimeout(() => controller.abort(), confirmed ? 140000 : 30000);
-      const trigger = confirmed ? this.confirm : this.listen;
-      trigger.setAttribute('aria-busy', 'true');
-      this.cancel.hidden = confirmed;
-      this.confirm.removeAttribute('aria-describedby');
-      this.setStatus(confirmed ? 'Preparing audio…' : 'Checking availability and cost…');
-      // Keep confirmation visible while focused. Restore focus only if its group disappears.
-      const returnFocus = () => {
-        if (this.confirm.parentElement.contains(this.container.getRootNode().activeElement)) this.listen.focus();
-      };
+      const timer = setTimeout(() => controller.abort(), 140000);
+      this.listen.setAttribute('aria-busy', 'true');
+      this.setStatus('Generating audio…');
       try {
-        const result = await audioForPassage(this.text, confirmed ? this.quote : null, controller.signal);
+        const { clip, message } = await audioForPassage(this.text, controller.signal);
         if (controller !== this.request) return;
-        if (result instanceof Blob) {
-          const audio = new Audio(URL.createObjectURL(result));
+        if (!clip) {
+          this.setStatus(message);
+          return;
+        }
+        const audio = new Audio(URL.createObjectURL(clip));
+        this.audio = audio;
+        audio.onplaying = () => {
+          if (this.audio !== audio || audio.paused) return;
+          // Keep playback state readable without speaking over the beginning of the clip.
+          this.status.textContent = '';
+          this.playing.hidden = false;
+        };
+        audio.onpause = () => {
+          if (this.audio === audio && audio.paused && !audio.ended && !this.playing.hidden) {
+            this.setPassageAction('Play or resume');
+            this.setStatus('Playback paused.');
+          }
+        };
+        audio.onended = () => {
+          if (this.audio !== audio) return;
           this.setPassageAction('Play or resume');
-          returnFocus();
-          this.confirm.parentElement.hidden = true;
-          this.quote = null;
-          this.audio = audio;
-          audio.onplaying = () => {
-            if (this.audio !== audio || audio.paused) return;
-            // Keep playback state readable without speaking over the beginning of the clip.
-            this.status.textContent = '';
-            this.playing.hidden = false;
-          };
-          audio.onpause = () => {
-            if (this.audio === audio && audio.paused && !audio.ended && !this.playing.hidden) {
-              this.setStatus('Playback paused.');
-            }
-          };
-          audio.onended = () => { if (this.audio === audio) this.setStatus('Playback finished.'); };
-          audio.onerror = () => {
-            if (this.audio !== audio) return;
-            const focused = this.container.getRootNode().activeElement;
-            if (focused === this.pauseButton || focused === this.stopButton) this.listen.focus();
-            this.reset('Playback failed. Choose Listen to try again.');
-          };
-          this.pauseButton.hidden = false;
-          this.stopButton.hidden = false;
-          this.setStatus('Audio ready.');
-        } else {
-          this.quote = result;
-          const cost = document.createElement('strong');
-          cost.textContent = result.estimatedCost + ' ETB';
-          const voice = document.createElement('span');
-          voice.className = 'quote-voice';
-          voice.textContent = 'Voice: ' + result.voice;
-          const label = confirmed ? 'Review the refreshed estimate and confirm again: ' : 'Estimated cost: ';
-          this.status.replaceChildren(label, cost, ' ', voice);
-          this.confirm.parentElement.hidden = false;
-          this.confirm.setAttribute('aria-describedby', 'speech-status');
-          this.cancel.hidden = false;
-        }
-      } catch (error) {
-        if (controller === this.request) {
-          returnFocus();
-          this.reset(error instanceof SpeechRequestError ? error.message : 'Speech request failed or timed out. Choose Listen to try again.');
-        }
+          this.setStatus('Playback finished.');
+        };
+        audio.onerror = () => {
+          if (this.audio !== audio) return;
+          const focused = this.container.getRootNode().activeElement;
+          if (focused === this.pauseButton || focused === this.stopButton) this.listen.focus();
+          this.reset('Playback failed. Choose Generate Audio to try again.');
+        };
+        this.pauseButton.hidden = false;
+        this.stopButton.hidden = false;
+        // Keep focus and its name stable when sound starts.
+        void this.play();
+      } catch {
+        if (controller === this.request) this.setStatus('Audio could not be loaded. Choose Generate Audio to try again.');
       } finally {
         clearTimeout(timer);
         if (controller === this.request) {
           this.request = null;
-          trigger.removeAttribute('aria-busy');
+          this.listen.removeAttribute('aria-busy');
         }
       }
     }

@@ -115,7 +115,7 @@ header::after {
 h3 { font: 500 2rem/1.18 Georgia, "Times New Roman", serif; letter-spacing: -.035em; }
 .language-pair + h3 { margin: .45rem 0 1.15rem; }
 #translation-help { max-width: 34ch; color: var(--muted); line-height: 1.6; }
-.primary, [data-action="confirm"] {
+.primary {
   background: var(--spruce); color: white; border-radius: .55rem; min-height: 2.75rem;
   padding: .55rem 1rem; font-weight: 650; font-size: .9rem;
 }
@@ -163,11 +163,6 @@ h3 { font: 500 2rem/1.18 Georgia, "Times New Roman", serif; letter-spacing: -.03
   font-size: .875rem; line-height: 1.4;
 }
 #speech-status { flex: 1 1 auto; min-width: 0; }
-#speech-status strong { color: var(--ink); white-space: nowrap; }
-.quote-voice { display: block; font-size: .82rem; }
-.quote-actions { display: flex; flex-wrap: wrap; align-items: center; gap: .35rem; }
-.quote-actions button { min-height: max(32px, 2.25rem); padding: .3rem .65rem; font-size: .85rem; }
-[data-action="confirm"]:hover { background: #235343; }
 [data-action="cancel"] { border-color: transparent; background: transparent; }
 .demo { padding: 1.25rem; margin-top: 1rem; border-inline-start: .23rem solid #c9a85e; }
 .demo p { margin-top: .65rem; line-height: 1.75; }
