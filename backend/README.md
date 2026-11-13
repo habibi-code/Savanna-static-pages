@@ -19,18 +19,18 @@ absent, opening pages, inspecting the preview, and testing the unavailable-servi
 state are free. Startup and automated tests make zero paid requests.
 
 1. Open [the short lesson fixture](http://127.0.0.1:3000/tests/lesson-content.html).
-   Open **Inklu Companion**, select the **Translate** tab, and Tab to **Translate with Addis AI**.
+   Open **Inklu Companion**, Tab to **Translate**.
    Use the browser Network panel to verify there are no translation requests yet.
-2. **After approving live spend**, press Enter on **Translate lesson**. This sends
+2. **After approving live spend**, press Enter on **Translate**. This sends
    the extracted title and body to Addis AI. Listen for the loading and completion
-   status. On success, focus moves from the action to the result heading. Each Amharic
+   status. Focus stays on the current action as results arrive. Each Amharic
    passage has its own Generate Audio button.
 3. Close the drawer, switch the active lesson, and reopen it. The previous result clears. Activate the button to
    translate the new lesson. Returning to a previously translated lesson and pressing
    the button again uses the server cache while the entry is retained.
 4. Open [the Savanna lesson](http://127.0.0.1:3000/pages/concept-with-navigation.html)
    to try the same control on the full lesson. Its longer text requires multiple
-   provider requests. The developer preview (`?inkluDebug=1`), the two demos, and Escape-to-close also
+   provider requests. The developer preview (`?inkluDebug=1`), Describe Visuals, and Escape-to-close also
    work with the API offline. To test an error for free, stop the server while the
    page is open and activate the action. Restart it before a user-initiated retry.
 
@@ -56,6 +56,18 @@ API requests are unsupported. The local server checks Host and Origin, serves
 only public site paths, and omits keys, provider error bodies, and lesson text
 from logs. Any local process can call this endpoint. It is intended for local
 development; a shared deployment needs authentication and per-user spending limits.
+
+## Simple English explanations
+
+**Explain Simply** sends the extracted lesson to `POST /api/simplify` as `{"text":"…"}`.
+The endpoint returns `{"explanation":"…"}` and uses the existing server-side Addis
+key. It applies the same origin and input checks as translation, with its own
+eight-request-per-minute limit and cache of 128 successful explanations. Identical
+pending requests share one provider operation. The prompt asks for beginner-friendly
+English and the source lesson's terms, examples and qualifications. If Addis returns
+primarily Amharic text, the server translates that generated explanation into English.
+This can incur a second text request. The TTS allowance applies only to speech.
+The drawer renders headings, paragraphs and lists as text, without inserting model HTML.
 
 ## Amharic audio
 

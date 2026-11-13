@@ -5,6 +5,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 import { APIConnectionError, APIConnectionTimeoutError } from 'addisai';
 import { createClient, translateEnglish, UserMessage } from './translation.js';
 import { automaticSpeech } from './automatic-speech.js';
+import { explainSimply } from './simplify.js';
 
 const maxBytes = 64 * 1024;
 class HttpError extends Error {
@@ -79,19 +80,19 @@ function logTranslationFailure(error, text, sectionIndex, sectionCount, started)
   }));
 }
 
-function cachedTranslator(client) {
+function cachedText(generate, onFailure) {
   const saved = new Map();
   const pending = new Map();
   return async (text, sectionIndex, sectionCount) => {
     if (saved.has(text)) return saved.get(text);
     if (pending.has(text)) return pending.get(text);
     const started = performance.now();
-    const request = translateEnglish(client, text).then(result => {
+    const request = generate(text).then(result => {
       if (saved.size >= 128) saved.delete(saved.keys().next().value);
       saved.set(text, result);
       return result;
     }, error => {
-      logTranslationFailure(error, text, sectionIndex, sectionCount, started);
+      onFailure?.(error, text, sectionIndex, sectionCount, started);
       throw error;
     }).finally(() => pending.delete(text));
     pending.set(text, request);
@@ -119,9 +120,10 @@ function json(res, status, body) {
 }
 
 export function makeServer(client, directory = fileURLToPath(new URL('./output/', import.meta.url)), allowance = process.env.INKLU_TTS_ALLOWANCE_ETB) {
-  const translate = cachedTranslator(client);
+  const translate = cachedText(text => translateEnglish(client, text), logTranslationFailure);
+  const simplify = cachedText(text => explainSimply(client, text));
   const speech = automaticSpeech(client, directory, allowance, process.env.INKLU_CACHED_VOICES);
-  const limits = new Map([['/api/translate', 8], ['/api/speech/listen', 8]]);
+  const limits = new Map([['/api/translate', 8], ['/api/simplify', 8], ['/api/speech/listen', 8]]);
   const windows = new Map();
   return createServer({ requestTimeout: 15000, headersTimeout: 10000, connectionsCheckingInterval: 1000 }, async (req, res) => {
     const path = req.url.split('?')[0];
@@ -162,6 +164,11 @@ export function makeServer(client, directory = fileURLToPath(new URL('./output/'
         return;
       }
       if (!client) throw new HttpError(503, 'Service is not configured.');
+      if (path === '/api/simplify') {
+        const explanation = await simplify(text);
+        if (!res.destroyed) json(res, 200, { explanation });
+        return;
+      }
       const results = [];
       const parts = [...sections(text)];
       for (const [index, section] of parts.entries()) {
@@ -173,6 +180,10 @@ export function makeServer(client, directory = fileURLToPath(new URL('./output/'
       if (res.destroyed) return;
       if (error instanceof HttpError) return json(res, error.status, { error: error.message });
       if (isSpeech) return json(res, 503, { error: 'Audio is temporarily unavailable.' });
+      if (path === '/api/simplify') {
+        const status = error instanceof APIConnectionTimeoutError ? 504 : error.status === 429 ? 429 : 502;
+        return json(res, status, { error: 'The explanation could not be prepared. Try again.' });
+      }
       if (error instanceof APIConnectionTimeoutError) return json(res, 504, { error: 'Translation timed out.' });
       if (error.status === 429) return json(res, 429, { error: 'Translation service is busy. Try again later.' });
       if (error.status === 402) return json(res, 503, { error: 'Translation credit is unavailable.' });

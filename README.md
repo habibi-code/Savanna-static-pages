@@ -58,10 +58,10 @@ Everything else is inert.
 ## Inklu — Learning without barriers
 
 Open the floating **Inklu Companion** button on the lesson page. Its desktop drawer
-becomes a full-screen reader on small screens. **Simplify** and **Describe** show
-labeled demo content. **Translate** sends the lesson to Addis AI only when the
-learner activates **Translate with Addis AI**. Use the local backend for live
-translation and speech. [Backend setup and testing instructions](backend/README.md#live-lesson-translation)
+becomes a full-screen reader on small screens. Choose **Explain Simply** for a
+beginner-friendly English explanation, **Translate** for Amharic, or **Describe Visuals**
+to read the lesson’s image descriptions. After translating, choose **Generate Audio**
+on the passage you want to hear. [Backend setup and testing instructions](backend/README.md#live-lesson-translation)
 
 To embed the companion, copy `assets/learning-companion/`, load `lesson-content.js`,
 `amharic-audio.js`, and `learning-companion.js` in order as classic scripts, and place `<alx-learning-companion></alx-learning-companion>`
@@ -100,14 +100,17 @@ production UI hides this disclosure by default.
 
 1. Tab to **Inklu Companion** and press Enter or Space. The modal
    announces its name and current lesson. Initial focus is on **Close Inklu**.
-2. Tab to the selected mode. Use Left/Right, Home, or End to switch tabs. Each
-   tab names its panel. In Translate, Tab to the translation action.
-3. After approving live spending, activate **Translate with Addis AI**. The result
-   heading introduces the Amharic passages. Tab to **Generate Audio for passage 1** and press Space.
+2. Tab through the three actions and use Enter or Space to choose one. Results
+   appear below the actions. While Explain Simply is loading, choose Describe Visuals.
+   Check that completion is announced once and focus stays on Describe Visuals.
+   Return to Explain Simply and Tab past the actions to the explanation. In NVDA
+   Browse Mode, use H to move between headings, Down Arrow to read line by line,
+   and Say All to read continuously through the paragraphs and lists.
+3. After approving live spending, activate **Translate**. Tab to **Generate Audio for passage 1** and press Space.
    The clip plays when ready. Tab to **Pause**, then Shift+Tab to **Play or resume**.
    **Stop** returns to the beginning. An audio error is announced without moving focus.
 4. Escape or **Close Inklu** restores focus to the launcher. Reopening the same
-   lesson retains the translation. Leaving a mode or closing the drawer cancels
+   lesson retains the translation. Choosing another action or closing the drawer cancels
    pending playback and stops playback.
 
 ### Offline browser tests

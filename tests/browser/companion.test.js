@@ -50,6 +50,10 @@ async function setup(t, options = {}) {
       if (options.translationError) return route.fulfill({ status: options.translationError, json: { error: 'Mock failure' } });
       return route.fulfill({ json: { translation: options.text ?? sample } });
     }
+    if (url.pathname === '/api/simplify') {
+      await options.waitExplanation;
+      return route.fulfill({ json: { explanation: '# Compare calendars\nCheck the time zones.\n- Pick a time.\n- Confirm it.\n## Next steps\n1. Send the invite.' } });
+    }
     assert.equal(url.pathname, '/api/speech/listen');
     if (options.speech) return options.speech(route);
     return route.fulfill({ contentType: 'audio/mpeg', body: mp3 });
@@ -74,15 +78,17 @@ test('keyboard launcher, modal focus, mode navigation, escape and no layout shif
   assert(await button('Close Inklu').evaluate(el => el.matches(':focus-visible')));
   assert.equal(await position(), before);
   await page.keyboard.press('Shift+Tab');
-  assert(await button('Translate with Addis AI').evaluate(el => el.matches(':focus')));
+  assert(await button('Describe Visuals').evaluate(el => el.matches(':focus')));
   await page.keyboard.press('Tab');
   assert(await button('Close Inklu').evaluate(el => el.matches(':focus')));
-  await page.keyboard.press('Tab');
-  assert(await page.getByRole('tab', { name: 'Translate' }).evaluate(el => el.matches(':focus')));
-  await page.keyboard.press('ArrowLeft');
-  assert(await panel.getByRole('heading', { name: 'Simplified English' }).isVisible());
-  await page.keyboard.press('End');
+  assert.equal(await button('Listen').count(), 0);
+  for (const name of ['Explain Simply', 'Translate', 'Describe Visuals']) {
+    await page.keyboard.press('Tab');
+    assert(await button(name).evaluate(el => el.matches(':focus')));
+  }
+  await page.keyboard.press('Enter');
   assert(await panel.getByRole('heading', { name: 'Visual descriptions' }).isVisible());
+  assert.equal(await panel.getByRole('tab').count(), 0);
   assert.equal(await panel.getByText('Extracted lesson content (debug preview)').isVisible(), false);
   assert.deepEqual(calls, []);
   await page.keyboard.press('Escape');
@@ -90,13 +96,12 @@ test('keyboard launcher, modal focus, mode navigation, escape and no layout shif
   assert(await launcher.evaluate(el => el.matches(':focus')));
 });
 
-test('selected mode has a contrasting indicator after focus leaves the tabs', async t => {
-  const { page, launcher } = await setup(t);
+test('the active action keeps a contrasting indicator after focus moves', async t => {
+  const { page, launcher, button } = await setup(t);
   await launcher.press('Enter');
-  await page.keyboard.press('Tab');
-  await page.keyboard.press('ArrowLeft');
-  await page.keyboard.press('Tab');
-  const tab = page.getByRole('tab', { name: 'Simplify', selected: true });
+  const tab = button('Describe Visuals');
+  await tab.press('Space');
+  await page.keyboard.press('Shift+Tab');
   const indicator = await tab.evaluate(el => {
     const style = getComputedStyle(el);
     return { focused: el.matches(':focus'), width: parseFloat(style.borderBottomWidth), style: style.borderBottomStyle,
@@ -116,6 +121,74 @@ test('selected mode has a contrasting indicator after focus leaves the tabs', as
   }
 });
 
+test('Explain Simply uses extracted text, renders semantic blocks, and keeps background results available', async t => {
+  const gate = Promise.withResolvers();
+  const { page, launcher, panel, calls, button } = await setup(t, { path: '/tests/lesson-content.html', waitExplanation: gate.promise });
+  await launcher.press('Enter');
+  assert.equal(calls.length, 0);
+  const explain = button('Explain Simply');
+  await explain.press('Enter');
+  await panel.getByRole('status').filter({ hasText: 'Preparing a simple explanation' }).waitFor();
+  await page.keyboard.press('Space');
+  await button('Describe Visuals').press('Space');
+  await panel.getByText('VA course banner', { exact: true }).waitFor();
+  gate.resolve();
+  await panel.getByRole('status').filter({ hasText: 'Simple explanation ready' }).waitFor();
+  assert(await button('Describe Visuals').evaluate(el => el.matches(':focus')));
+  await explain.press('Space');
+  assert(await panel.getByRole('heading', { name: 'Compare calendars', level: 4 }).isVisible());
+  assert.deepEqual(await panel.locator('#explanation li').allTextContents(), ['Pick a time.', 'Confirm it.', 'Send the invite.']);
+  assert.equal(calls.length, 1);
+  assert.equal(calls[0][0], '/api/simplify');
+  assert.match(calls[0][1].text, /Writing a meeting brief/);
+  assert.doesNotMatch(calls[0][1].text, /Test navigation menu/);
+  await page.locator('#example').evaluate(el => { el.value = 'schedule'; el.dispatchEvent(new Event('change')); });
+  await panel.getByRole('status').filter({ hasText: 'The lesson changed' }).waitFor();
+  await page.route('**/api/simplify', route => route.fulfill({ status: 502, body: 'private' }), { times: 1 });
+  await explain.press('Enter');
+  await panel.locator('#reading-note').filter({ hasText: 'Explanation failed' }).waitFor();
+  await explain.press('Enter');
+  await panel.getByRole('heading', { name: 'Compare calendars' }).waitFor();
+  assert.match(calls[1][1].text, /Reading a weekly schedule/);
+  await button('Translate').press('Enter');
+  await button('Generate Audio for passage 1').waitFor();
+  await button('Generate Audio for passage 1').press('Space');
+  await panel.getByText('Playing', { exact: true }).waitFor();
+  assert.equal(calls.at(-1)[0], '/api/speech/listen');
+});
+
+test('completed explanation is a keyboard-reachable reading document with one short completion announcement', async t => {
+  const gate = Promise.withResolvers();
+  const { page, launcher, panel, button } = await setup(t, { waitExplanation: gate.promise });
+  await launcher.press('Enter');
+  const status = panel.getByRole('status');
+  await status.evaluate(el => {
+    window.announcements = [];
+    new MutationObserver(() => window.announcements.push(el.textContent)).observe(el, { childList: true });
+  });
+  const explain = button('Explain Simply');
+  await explain.press('Enter');
+  await status.filter({ hasText: 'Preparing a simple explanation' }).waitFor();
+  gate.resolve();
+  await status.filter({ hasText: 'Simple explanation ready.' }).waitFor();
+  assert(await explain.evaluate(el => el.matches(':focus')));
+  const doc = panel.getByRole('document', { name: 'Simple explanation' });
+  assert.equal(await doc.evaluate(el => !!el.closest('[aria-live], [role="status"], [role="alert"], [inert], [aria-hidden="true"]')), false);
+  assert(await doc.getByRole('heading', { level: 4, name: 'Compare calendars' }).isVisible());
+  assert(await doc.getByRole('heading', { level: 5, name: 'Next steps' }).isVisible());
+  assert.equal(await doc.getByRole('paragraph').innerText(), 'Check the time zones.');
+  assert.deepEqual(await doc.getByRole('list').evaluateAll(lists => lists.map(list => list.localName)), ['ul', 'ol']);
+  await button('Describe Visuals').press('Enter');
+  await explain.press('Enter');
+  for (let i = 0; i < 3; i++) await page.keyboard.press('Tab');
+  assert(await doc.evaluate(el => el.matches(':focus')));
+  await page.keyboard.press('Escape');
+  assert(await launcher.evaluate(el => el.matches(':focus')));
+  const messages = await page.evaluate(() => window.announcements);
+  assert.deepEqual(messages.filter(message => message === 'Simple explanation ready.'), ['Simple explanation ready.']);
+  assert(!messages.some(message => message.includes('Check the time zones.')));
+});
+
 test('browser playback policy offers manual Play using the same downloaded clip', async t => {
   const { page, panel, launcher, button, calls } = await setup(t);
   await page.evaluate(() => {
@@ -126,7 +199,7 @@ test('browser playback policy offers manual Play using the same downloaded clip'
     };
   });
   await launcher.click();
-  await button('Translate with Addis AI').click();
+  await button('Translate').click();
   await button('Generate Audio for passage 1').press('Enter');
   await panel.getByRole('status').filter({ hasText: 'Audio ready. Choose Play or resume.' }).waitFor();
   const play = button('Play or resume passage 1');
@@ -139,10 +212,10 @@ test('browser playback policy offers manual Play using the same downloaded clip'
 test('translation error is retryable and closing the drawer cancels pending playback', async t => {
   const { page, launcher, panel, button } = await setup(t);
   await launcher.click();
-  const action = button('Translate with Addis AI');
+  const action = button('Translate');
   await page.route('**/api/translate', route => route.fulfill({ status: 503, json: { error: 'test failure' } }), { times: 1 });
   await action.click();
-  await panel.getByText(/Translation is unavailable/).waitFor();
+  await panel.getByRole('status').filter({ hasText: /Translation is unavailable/ }).waitFor();
   await action.press('Enter');
   const pending = Promise.withResolvers();
   const arrived = Promise.withResolvers();
@@ -163,9 +236,9 @@ test('translation error is retryable and closing the drawer cancels pending play
 });
 
 for (const [code, mode, message] of [
-  [200, 'Simplify', 'Amharic translation ready.'],
-  [504, 'Describe', 'Translation timed out. You can try again.'],
-  [502, 'Simplify', 'Translation failed. You can try again.'],
+  [200, 'Describe Visuals', 'Amharic translation ready.'],
+  [504, 'Describe Visuals', 'Translation timed out. You can try again.'],
+  [502, 'Describe Visuals', 'Translation failed. You can try again.'],
 ]) {
   test('translation HTTP ' + code + ' reaches the live region while reading ' + mode, async t => {
     const gate = Promise.withResolvers();
@@ -173,23 +246,23 @@ for (const [code, mode, message] of [
       waitTranslation: gate.promise, translationError: code === 200 ? undefined : code,
     });
     await launcher.press('Enter');
-    const action = button('Translate with Addis AI');
+    const action = button('Translate');
     await action.press('Enter');
     assert(await action.isEnabled());
     assert(await action.evaluate(el => el.matches(':focus') && el.tabIndex >= 0));
     await page.keyboard.press('Space');
-    const translate = page.getByRole('tab', { name: 'Translate' });
-    await translate.press(mode === 'Simplify' ? 'ArrowLeft' : 'ArrowRight');
-    const selected = page.getByRole('tab', { name: mode, selected: true });
     const status = panel.getByRole('status');
     await status.filter({ hasText: 'Translating the lesson' }).waitFor();
+    const selected = button(mode);
+    await selected.press('Space');
     gate.resolve();
     await status.filter({ hasText: message }).waitFor();
     assert.deepEqual(await status.allTextContents(), [message]);
     assert(await selected.evaluate(el => el.matches(':focus')));
-    await selected.press(mode === 'Simplify' ? 'ArrowRight' : 'ArrowLeft');
-    assert.deepEqual(await status.allTextContents(), [message]);
-    assert(await (code === 200 ? button('Generate Audio for passage 1') : button('Translate with Addis AI')).isEnabled());
+    if (code === 200) {
+      await button('Translate').click();
+      assert(await button('Generate Audio for passage 1').isEnabled());
+    } else assert(await button('Translate').isEnabled());
     assert.equal(calls.length, 1);
   });
 }
@@ -198,7 +271,7 @@ test('closing during translation keeps the result without announcing a backgroun
   const gate = Promise.withResolvers();
   const { page, panel, launcher, calls, button } = await setup(t, { waitTranslation: gate.promise });
   await launcher.press('Enter');
-  await button('Translate with Addis AI').press('Enter');
+  await button('Translate').press('Enter');
   await page.keyboard.press('Escape');
   await panel.waitFor({ state: 'hidden' });
   gate.resolve();
@@ -216,27 +289,26 @@ test('changing lessons cancels the old request without a timeout or stale result
     path: '/tests/lesson-content.html', waitTranslation: gate.promise,
   });
   await launcher.press('Enter');
-  await button('Translate with Addis AI').press('Enter');
-  await page.getByRole('tab', { name: 'Translate' }).press('ArrowRight');
+  await button('Translate').press('Enter');
+  await button('Describe Visuals').press('Space');
   const aborted = page.waitForEvent('requestfailed', req => req.url().endsWith('/api/translate'));
   await page.locator('#example').evaluate(el => { el.value = 'schedule'; el.dispatchEvent(new Event('change')); });
   gate.resolve();
   await aborted;
   const status = panel.getByRole('status');
   await status.filter({ hasText: 'The lesson changed.' }).waitFor();
-  await page.keyboard.press('ArrowLeft');
-  assert.equal(await status.textContent(), 'The lesson changed. You can translate the new lesson.');
+  assert.equal(await status.textContent(), 'The lesson changed. Choose an action for the new lesson.');
   assert.equal(await button('Generate Audio for passage 1').count(), 0);
-  assert(await button('Translate with Addis AI').isEnabled());
+  assert(await button('Translate').isEnabled());
 });
 
 test('mode transitions preserve one translation; one Generate Audio activation plays the selected passage', async t => {
   const gate = Promise.withResolvers();
   const { page, launcher, panel, calls, button } = await setup(t, { waitTranslation: gate.promise });
   await launcher.click();
-  await button('Translate with Addis AI').click();
-  await page.getByRole('tab', { name: 'Describe' }).click();
-  await page.getByRole('tab', { name: 'Translate' }).click();
+  await button('Translate').click();
+  await button('Describe Visuals').click();
+  await button('Translate').click();
   gate.resolve();
   const first = button('Generate Audio for passage 1'), second = button('Generate Audio for passage 2');
   await first.waitFor();
@@ -284,7 +356,7 @@ for (const [code, message] of [[502, 'Audio could not be loaded'], [503, 'Audio 
       return route.fulfill({ contentType: 'audio/mpeg', body: mp3 });
     } });
     await launcher.press('Enter');
-    await button('Translate with Addis AI').press('Enter');
+    await button('Translate').press('Enter');
     const listen = button('Generate Audio for passage 1');
     await listen.press('Space');
     const status = panel.getByRole('status');
@@ -315,18 +387,18 @@ for (const change of ['lesson', 'mode']) {
       await route.fulfill({ contentType: 'audio/mpeg', body: mp3 }).catch(() => {});
     } });
     await launcher.press('Enter');
-    await button('Translate with Addis AI').press('Space');
+    await button('Translate').press('Space');
     await button('Generate Audio for passage 1').press('Space');
     await arrived.promise;
     const aborted = page.waitForEvent('requestfailed', req => req.url().endsWith('/api/speech/listen'));
     if (change === 'lesson') {
       await page.locator('#example').evaluate(el => { el.value = 'schedule'; el.dispatchEvent(new Event('change')); });
     } else {
-      await page.getByRole('tab', { name: 'Translate' }).press('ArrowRight');
+      await button('Describe Visuals').press('Space');
     }
     gate.resolve();
     await aborted;
-    if (change === 'mode') await page.keyboard.press('ArrowLeft');
+    if (change === 'mode') await button('Translate').click();
     assert.equal(await panel.locator('.passage.active').count(), 0);
     assert.equal(await button('Pause passage 1').count(), 0);
   });
@@ -335,7 +407,7 @@ for (const change of ['lesson', 'mode']) {
 test('developer preview, missing lesson and stale translation cleanup', async t => {
   const { page, panel, launcher, button, calls } = await setup(t, { path: '/tests/lesson-content.html?inkluDebug=1' });
   await launcher.click();
-  await button('Translate with Addis AI').click();
+  await button('Translate').click();
   await button('Generate Audio for passage 1').waitFor();
   await page.locator('#example').evaluate(el => { el.value = 'schedule'; el.dispatchEvent(new Event('change')); });
   await panel.getByText('Reading a weekly schedule', { exact: true }).waitFor();
@@ -343,8 +415,8 @@ test('developer preview, missing lesson and stale translation cleanup', async t 
   await panel.locator('summary').click();
   await panel.locator('#preview').getByText(/Check both time zones/).waitFor();
   await page.locator('#example').evaluate(el => { el.value = 'empty'; el.dispatchEvent(new Event('change')); });
-  await button('Translate with Addis AI').click();
-  await panel.getByText('No lesson text is available to translate.').waitFor();
+  await button('Translate').click();
+  await panel.getByRole('status').filter({ hasText: 'No lesson text is available to translate.' }).waitFor();
   assert.equal(calls.length, 1);
 });
 
@@ -357,7 +429,7 @@ for (const [name, viewport] of [['desktop', { width: 1440, height: 900 }], ['mob
       await page.screenshot({ path: join(process.env.INKLU_SCREENSHOTS, 'launcher.png') });
     }
     await launcher.click();
-    await button('Translate with Addis AI').click();
+    await button('Translate').click();
     await button('Generate Audio for passage 4').waitFor();
     assert(await panel.evaluate(el => el.scrollWidth <= el.clientWidth + 1));
     const rect = await panel.boundingBox();
@@ -380,7 +452,7 @@ test('narrow layout, enlarged type, long unbroken text, forced colors and reduce
     forcedColors: 'active', text: 'ሀ'.repeat(350), path: '/tests/lesson-content.html' });
   await page.evaluate(() => { document.documentElement.style.fontSize = '200%'; });
   await launcher.press('Enter');
-  await button('Translate with Addis AI').click();
+  await button('Translate').click();
   await button('Generate Audio for passage 4').waitFor();
   assert(await panel.evaluate(el => el.scrollWidth <= el.clientWidth + 1));
   assert.equal(await panel.evaluate(el => getComputedStyle(el).animationName), 'none');

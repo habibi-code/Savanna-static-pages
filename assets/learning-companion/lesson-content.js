@@ -24,7 +24,7 @@
   }
 
   // Copy reading content into detached, inert markup. Authored links contribute their text.
-  function copyContent(node, output, skip) {
+  function copyContent(node, output, skip, images) {
     if (node.nodeType === Node.TEXT_NODE) {
       output.append(node.data);
       return;
@@ -34,6 +34,7 @@
     const tag = node.localName;
     if (tag === 'img') {
       const label = node.getAttribute('aria-label')?.trim() || node.getAttribute('alt')?.trim();
+      if (label || !node.hasAttribute('alt')) images.push(label || 'Image without a description.');
       if (label) output.append(' Image description: ' + label + ' ');
       else if (!node.hasAttribute('alt')) output.append(' [Image without alt text] ');
       return;
@@ -48,26 +49,27 @@
       copy.reversed = node.reversed;
     }
     if (tag === 'li' && node.hasAttribute('value')) copy.value = node.value;
-    for (const child of node.childNodes) copyContent(child, copy, skip);
+    for (const child of node.childNodes) copyContent(child, copy, skip, images);
     output.append(copy);
   }
 
   function extractLesson(lesson = document.getElementById('curriculum_navigation_content')) {
     const content = document.createDocumentFragment();
-    if (!lesson || !isAvailable(lesson)) return { title: '', content };
+    const images = [];
+    if (!lesson || !isAvailable(lesson)) return { title: '', content, images };
 
     const heading = Array.from(lesson.querySelectorAll('h1')).find(isAvailable);
     const titleCopy = document.createDocumentFragment();
-    if (heading) copyContent(heading, titleCopy);
+    if (heading) copyContent(heading, titleCopy, null, images);
 
     // Some captures have the styling wrapper alone; others nest it inside formatted-content.
     const bodies = lesson.querySelectorAll('.formatted-content, .savanna-styles');
     for (const body of bodies) {
       const outerBody = body.parentElement.closest('.formatted-content, .savanna-styles');
       if ((outerBody && lesson.contains(outerBody)) || !isAvailable(body)) continue;
-      copyContent(body, content, heading);
+      copyContent(body, content, heading, images);
     }
-    return { title: titleCopy.textContent.replace(/\s+/g, ' ').trim(), content };
+    return { title: titleCopy.textContent.replace(/\s+/g, ' ').trim(), content, images };
   }
 
   window.SavannaLessonContent = { extractLesson };

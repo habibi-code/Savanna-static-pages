@@ -4,16 +4,34 @@
   if (customElements.get('alx-learning-companion')) return;
 
   const stylesheet = new URL('learning-companion.css', document.currentScript.src).href;
-  const demoResponses = {
-    simple: {
-      lang: 'en',
-      text: 'Virtual assistants help people and businesses online. They can use software to draft an email or plan a meeting. People still need to check the work and decide what to do.',
-    },
-    visual: {
-      lang: 'en',
-      text: 'The lesson compares two lists side by side. The left lists tasks software can help with, such as drafting emails. The right lists work that needs a person, such as listening to clients and deciding which task comes first.',
-    },
-  };
+  const headings = { simplify: 'Simple explanation', translate: 'Amharic translation',
+    describe: 'Visual descriptions' };
+
+  function renderExplanation(output, text) {
+    let list;
+    for (const raw of text.split(/\r?\n/u)) {
+      const line = raw.trim();
+      if (!line) { list = null; continue; }
+      const item = /^([-*]|\d+[.)])\s+(.+)/u.exec(line);
+      if (item) {
+        const tag = /^\d/u.test(item[1]) ? 'ol' : 'ul';
+        if (list?.localName !== tag) {
+          list = document.createElement(tag);
+          if (tag === 'ol') list.start = parseInt(item[1], 10);
+          output.append(list);
+        }
+        const li = document.createElement('li');
+        li.textContent = item[2];
+        list.append(li);
+      } else {
+        list = null;
+        const heading = /^(#{1,6})\s+(.+)/u.exec(line);
+        const block = document.createElement(heading ? 'h' + Math.min(6, 3 + heading[1].length) : 'p');
+        block.textContent = heading ? heading[2] : line;
+        output.append(block);
+      }
+    }
+  }
 
   function lessonText(extracted) {
     if (!extracted) return '';
@@ -46,27 +64,20 @@
             <div class="lesson"><span class="eyebrow">Current lesson</span><p id="lesson-title"></p></div>
           </header>
           <div class="workspace">
-            <div role="tablist" aria-label="Learning modes">
-              <button type="button" role="tab" id="tab-simple" aria-selected="false" aria-controls="simple" tabindex="-1"><i class="mode-icon lines" aria-hidden="true"></i>Simplify</button>
-              <button type="button" role="tab" id="tab-amharic" aria-selected="true" aria-controls="amharic"><i class="mode-icon languages" aria-hidden="true">A<span>አ</span></i>Translate</button>
-              <button type="button" role="tab" id="tab-visual" aria-selected="false" aria-controls="visual" tabindex="-1"><i class="mode-icon picture" aria-hidden="true"></i>Describe</button>
+            <p class="intro">Choose how you’d like to explore this lesson.</p>
+            <div class="actions" role="group" aria-label="Lesson actions">
+              <button type="button" data-action="simplify" aria-controls="reading">Explain Simply</button>
+              <button type="button" data-action="translate" aria-controls="reading">Translate</button>
+              <button type="button" data-action="describe" aria-controls="reading">Describe Visuals</button>
             </div>
-            <section role="tabpanel" id="simple" aria-labelledby="tab-simple" tabindex="0" hidden>
-              <h3>Simplified English</h3><div class="demo"><span class="eyebrow">Demo content</span><p></p></div>
+            <section id="reading" aria-labelledby="reading-title" hidden>
+              <h3 id="reading-title">Lesson support</h3>
+              <p id="reading-note" hidden></p>
+              <div id="explanation" role="document" aria-labelledby="reading-title" tabindex="0" lang="en" hidden></div>
+              <ol id="translation" aria-label="Translated passages" hidden></ol>
+              <ul id="visuals" hidden></ul>
             </section>
-            <section role="tabpanel" id="amharic" aria-labelledby="tab-amharic">
-              <div class="language-pair"><span>English</span><i aria-hidden="true">→</i><span lang="am">አማርኛ</span></div>
-              <h3 tabindex="-1">Amharic translation</h3>
-              <div id="translate-action">
-                <p id="translation-help">Read this lesson in Amharic and listen to it one passage at a time.</p>
-                <button type="button" id="translate" class="primary" aria-describedby="translation-help">Translate with Addis AI <span aria-hidden="true">→</span></button>
-              </div>
-              <ol id="translation" aria-label="Translated passages"></ol>
-            </section>
-            <section role="tabpanel" id="visual" aria-labelledby="tab-visual" tabindex="0" hidden>
-              <h3>Visual descriptions</h3><div class="demo"><span class="eyebrow">Demo content</span><p></p></div>
-            </section>
-            <p id="translation-status" role="status" aria-atomic="true"></p>
+            <p class="sr-only" id="translation-status" role="status" aria-atomic="true"></p>
             <details hidden>
               <summary>Extracted lesson content (debug preview)</summary>
               <p id="preview-status" role="status" aria-atomic="true"></p>
@@ -85,7 +96,12 @@
       const panel = root.getElementById('panel');
       const details = root.querySelector('details');
       details.hidden = new URLSearchParams(location.search).get('inkluDebug') !== '1';
-      for (const [mode, sample] of Object.entries(demoResponses)) root.querySelector('#' + mode + ' .demo p').textContent = sample.text;
+      this.requests = new Map();
+      this.outcomes = new Map();
+      for (const button of root.querySelectorAll('.actions button')) {
+        button.setAttribute('aria-pressed', 'false');
+        button.addEventListener('click', () => this.choose(button.dataset.action));
+      }
       this.previewObserver = new MutationObserver((records) => {
         const lesson = this.findLesson();
         if (lesson !== this.previewLesson || records.some(({ target }) =>
@@ -94,7 +110,6 @@
         }
       });
       details.addEventListener('toggle', () => this.watchLesson());
-      root.getElementById('translate').addEventListener('click', () => this.translateLesson());
       toggle.addEventListener('click', () => {
         panel.showModal();
         toggle.setAttribute('aria-expanded', 'true');
@@ -108,7 +123,6 @@
         this.watchLesson();
         if (this.isConnected) toggle.focus({ preventScroll: true });
       });
-      const tabs = [...root.querySelectorAll('[role="tab"]')];
       panel.addEventListener('keydown', event => {
         if (event.key !== 'Tab') return;
         const stops = [...panel.querySelectorAll('button, summary, [tabindex="0"]')]
@@ -118,26 +132,6 @@
           event.preventDefault();
           (event.shiftKey ? stops.at(-1) : stops[0]).focus();
         }
-      });
-      const select = tab => {
-        if (tab.getAttribute('aria-selected') === 'true') return;
-        this.speech?.deactivate();
-        for (const item of tabs) {
-          const active = item === tab;
-          item.setAttribute('aria-selected', String(active));
-          item.tabIndex = active ? 0 : -1;
-          root.getElementById(item.getAttribute('aria-controls')).hidden = !active;
-        }
-      };
-      tabs.forEach((tab, index) => {
-        tab.addEventListener('click', () => select(tab));
-        tab.addEventListener('keydown', event => {
-          const next = { ArrowRight: (index + 1) % 3, ArrowLeft: (index + 2) % 3, Home: 0, End: 2 }[event.key];
-          if (next === undefined) return;
-          event.preventDefault();
-          select(tabs[next]);
-          tabs[next].focus();
-        });
       });
     }
 
@@ -152,7 +146,7 @@
 
     disconnectedCallback() {
       this.previewObserver.disconnect();
-      this.clearTranslation();
+      this.clearReading();
     }
 
     watchLesson() {
@@ -171,89 +165,154 @@
       const extracted = window.SavannaLessonContent?.extractLesson(lesson);
       this.shadowRoot.getElementById('lesson-title').textContent = extracted?.title || 'Lesson unavailable';
       if (this.shadowRoot.querySelector('details').open) this.renderPreview(lesson);
-      if (this.translationSource && (this.previewLesson !== lesson || this.translationSource !== lessonText(extracted))) {
-        this.clearTranslation('The lesson changed. You can translate the new lesson.');
+      const source = lessonText(extracted);
+      if (this.source !== undefined && (lesson !== this.previewLesson || source !== this.source)) {
+        this.clearReading('The lesson changed. Choose an action for the new lesson.');
       }
+      this.source = source;
+      this.images = extracted?.images ?? [];
       this.previewLesson = lesson;
     }
 
-    clearTranslation(message = '') {
-      this.request?.abort();
-      this.request = null;
-      this.translationSource = '';
+    clearReading(message = '') {
+      for (const request of this.requests.values()) request.abort();
+      this.requests.clear();
+      this.outcomes.clear();
       const root = this.shadowRoot;
-      const restore = message && root.getElementById('translation').contains(root.activeElement);
-      root.getElementById('translate-action').hidden = false;
-      if (restore) root.getElementById('translate').focus();
+      if (root.getElementById('reading').contains(root.activeElement)) {
+        root.querySelector('.actions [aria-pressed="true"]')?.focus();
+      }
+      this.active = null;
+      this.source = undefined;
       this.speech?.setTranslation('');
-      root.getElementById('translation').removeAttribute('aria-busy');
-      root.getElementById('translation').textContent = '';
-      root.getElementById('translation-status').textContent = message;
-      root.getElementById('translation-status').classList.remove('sr-only');
+      for (const button of root.querySelectorAll('.actions button')) button.setAttribute('aria-pressed', 'false');
+      for (const id of ['translation', 'explanation', 'visuals']) root.getElementById(id).replaceChildren();
+      root.getElementById('reading').hidden = true;
+      root.getElementById('reading').removeAttribute('aria-busy');
+      this.notify(message);
     }
 
-    async translateLesson() {
-      if (this.request) return;
+    notify(message, visible = true) {
       const root = this.shadowRoot;
+      if (visible) {
+        const note = root.getElementById('reading-note');
+        note.textContent = message;
+        note.hidden = !message;
+      }
       const status = root.getElementById('translation-status');
-      this.clearTranslation();
-      const text = lessonText(window.SavannaLessonContent?.extractLesson(this.findLesson()));
-      if (!text) { status.textContent = 'No lesson text is available to translate.'; return; }
+      const announcement = root.getElementById('panel').open ? message : '';
+      if (status.textContent !== announcement) status.textContent = announcement;
+    }
+
+    choose(action) {
+      const root = this.shadowRoot;
+      const reading = root.getElementById('reading');
+      const passages = root.getElementById('translation');
+      const note = root.getElementById('reading-note');
+      if (this.active !== action) this.speech?.deactivate();
+      this.active = action;
+      for (const button of root.querySelectorAll('.actions button')) {
+        button.setAttribute('aria-pressed', String(button.dataset.action === action));
+      }
+      reading.hidden = false;
+      root.getElementById('reading-title').textContent = headings[action];
+      passages.hidden = action !== 'translate';
+      root.getElementById('explanation').hidden = action !== 'simplify' || !this.outcomes.has('simplify');
+      const visuals = root.getElementById('visuals');
+      visuals.hidden = action !== 'describe';
+      note.hidden = true;
+      reading.removeAttribute('aria-busy');
+      if (action === 'describe') {
+        visuals.replaceChildren(...this.images.map(label => {
+          const item = document.createElement('li');
+          item.textContent = label;
+          return item;
+        }));
+        this.notify(this.images.length ? 'Image descriptions ready.' : 'This lesson has no images to describe.', !this.images.length);
+        return;
+      }
+      if (this.requests.has(action)) {
+        reading.setAttribute('aria-busy', 'true');
+        this.notify(this.loadingMessage(action));
+        return;
+      }
+      if (this.outcomes.has(action)) {
+        this.notify(action === 'simplify' ? '' : this.outcomes.get(action), false);
+        return;
+      }
+      this.requestText(action);
+    }
+
+    loadingMessage(action) {
+      return action === 'translate' ? 'Translating the lesson into Amharic…' : 'Preparing a simple explanation…';
+    }
+
+    async requestText(action) {
+      const root = this.shadowRoot;
+      const translating = action === 'translate';
+      const subject = translating ? 'Translation' : 'Explanation';
+      if (!this.source) {
+        this.notify(translating ? 'No lesson text is available to translate.' : 'No lesson text is available to explain.');
+        return;
+      }
       if (!['http:', 'https:'].includes(location.protocol)) {
-        status.textContent = 'Open this lesson through the local Savanna server to use translation.';
+        this.notify('Open this lesson through the local Savanna server to use this action.');
         return;
       }
       const controller = new AbortController();
-      this.request = controller;
-      this.translationSource = text;
-      this.previewLesson = this.findLesson();
-      this.watchLesson();
-      const output = root.getElementById('translation');
-      const button = root.getElementById('translate');
-      output.setAttribute('aria-busy', 'true');
-      status.textContent = 'Translating the lesson into Amharic…';
-      // Leave focus on the action, including during a request or after an error.
+      this.requests.set(action, controller);
+      const reading = root.getElementById('reading');
+      reading.setAttribute('aria-busy', 'true');
+      this.notify(this.loadingMessage(action));
       const timer = setTimeout(() => controller.abort(), 90000);
+      let message;
       try {
-        const response = await fetch('/api/translate', {
+        const response = await fetch('/api/' + action, {
           method: 'POST', headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ text }), signal: controller.signal, redirect: 'error',
+          body: JSON.stringify({ text: this.source }), signal: controller.signal, redirect: 'error',
         });
-        if (this.request !== controller) return;
         if (!response.ok) {
           const messages = {
-            413: 'This lesson is too long for one translation request.',
-            429: 'Too many translation requests. Wait a minute and try again.',
-            503: 'Translation is unavailable. Check the server configuration and credit, then try again.',
-            504: 'Translation timed out. You can try again.',
+            413: 'This lesson is too long for one request.',
+            429: 'Too many requests. Wait a minute and try again.',
+            503: subject + ' is unavailable. Try again later.',
+            504: subject + ' timed out. You can try again.',
           };
-          status.textContent = messages[response.status] || 'Translation failed. You can try again.';
+          message = messages[response.status] || subject + ' failed. You can try again.';
           return;
         }
-        const { translation } = await response.json();
-        if (this.request !== controller) return;
-        if (typeof translation !== 'string' || !translation.trim()) throw new Error();
-        if (this.speech) this.speech.setTranslation(translation);
-        else {
-          for (const paragraph of translation.split(/\n+/)) {
-            const item = document.createElement('li');
-            item.lang = 'am';
-            item.textContent = paragraph;
-            output.append(item);
+        const result = await response.json();
+        if (this.requests.get(action) !== controller) return;
+        const text = translating ? result.translation : result.explanation;
+        if (typeof text !== 'string' || !text.trim()) throw new Error();
+        if (translating) {
+          if (this.speech) this.speech.setTranslation(text);
+          else {
+            for (const paragraph of text.split(/\n+/u)) {
+              const item = document.createElement('li');
+              item.lang = 'am';
+              item.textContent = paragraph;
+              root.getElementById('translation').append(item);
+            }
           }
+        } else {
+          const explanation = root.getElementById('explanation');
+          renderExplanation(explanation, text);
+          explanation.hidden = this.active !== action;
         }
-        if (root.activeElement === button) root.querySelector('#amharic h3').focus();
-        root.getElementById('translate-action').hidden = true;
-        status.classList.add('sr-only');
-        status.textContent = root.getElementById('panel').open ? 'Amharic translation ready.' : '';
+        message = translating ? 'Amharic translation ready.' : 'Simple explanation ready.';
+        this.outcomes.set(action, message);
       } catch {
-        if (this.request === controller) status.textContent = controller.signal.aborted
-          ? 'Translation timed out. You can try again.' : 'Could not reach the translation service. You can try again.';
+        message = controller.signal.aborted ? subject + ' timed out. You can try again.' :
+          subject + ' failed. You can try again.';
       } finally {
         clearTimeout(timer);
-        if (this.request === controller) {
-          this.request = null;
-          output.removeAttribute('aria-busy');
+        if (this.requests.get(action) === controller) {
+          this.requests.delete(action);
+          if (this.active === action) reading.removeAttribute('aria-busy');
+          const readingThis = this.active === action;
+          if (readingThis && this.outcomes.has(action)) root.getElementById('reading-note').hidden = true;
+          this.notify(message, readingThis && !this.outcomes.has(action));
         }
       }
     }

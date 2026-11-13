@@ -6,9 +6,9 @@ import AddisAI, { APIConnectionTimeoutError } from 'addisai';
 import { makeServer } from './server.js';
 
 const amharic = 'ሁለቱንም የሰዓት ሰቆች ያረጋግጡ።';
-async function start(t, handler = async () => ({ text: amharic })) {
+async function start(t, handler = async () => ({ text: amharic }), chat) {
   const calls = [];
-  const client = { translate: { async create(input, options) {
+  const client = { chat, translate: { async create(input, options) {
     calls.push(input);
     assert.equal(options.timeout, 20000);
     return handler(input);
@@ -23,6 +23,38 @@ async function start(t, handler = async () => ({ text: amharic })) {
     body: JSON.stringify({ text }) });
   return { base, url, post, calls, server };
 }
+
+test('simplify sends lesson data separately from instructions, caches English explanations and validates input', async t => {
+  const source = 'Check both calendars before choosing a time.';
+  const explanation = '# Scheduling\nCompare the calendars.\n- Pick a time.';
+  const prompts = [];
+  const { base } = await start(t, undefined, { completions: { create: async (input, options) => {
+    prompts.push(input);
+    assert.equal(options.timeout, 45000);
+    return { choices: [{ message: { content: explanation }, finish_reason: 'stop' }] };
+  } } });
+  const post = text => fetch(base + '/api/simplify', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ text }) });
+  assert.equal((await post(' ')).status, 400);
+  assert.equal((await post('x'.repeat(16001))).status, 413);
+  for (let i = 0; i < 2; i++) assert.deepEqual(await (await post(source)).json(), { explanation });
+  assert.equal(prompts.length, 1);
+  assert.match(prompts[0].system, /beginner-friendly English/);
+  assert.deepEqual(prompts[0].messages, [{ role: 'user', content: source }]);
+});
+
+test('simplify rejects incomplete content and can convert an Amharic explanation on manual retry', async t => {
+  let finish = 'length';
+  const { base, calls } = await start(t, () => ({ text: 'Check both time zones.' }), {
+    completions: { create: async () => ({ choices: [{ message: { content: amharic }, finish_reason: finish }] }) },
+  });
+  const post = () => fetch(base + '/api/simplify', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ text: 'Compare the times.' }) });
+  assert.equal((await post()).status, 502);
+  finish = 'stop';
+  assert.deepEqual(await (await post()).json(), { explanation: 'Check both time zones.' });
+  assert.deepEqual(calls, [{ text: amharic, from: 'am', to: 'en' }]);
+});
 
 test('concurrent identical lessons share a translation and later requests reuse the result', async t => {
   const pending = Promise.withResolvers();
