@@ -8,10 +8,14 @@ export async function explainSimply(client, text) {
   const completion = await client.chat.completions.create({
     system: instructions, messages: [{ role: 'user', content: text }], temperature: 0.2, max_tokens: 3500,
   }, { timeout: 45000 });
+  return englishResult(client, completion, 20000);
+}
+
+export async function englishResult(client, completion, limit) {
   const choice = completion.choices?.[0];
   if (choice?.finish_reason && choice.finish_reason.toLowerCase() !== 'stop') throw new Error('Incomplete explanation');
   let explanation = choice?.message?.content;
-  if (typeof explanation !== 'string' || !explanation.trim() || explanation.length > 20000) throw new Error('Invalid explanation');
+  if (typeof explanation !== 'string' || !explanation.trim() || explanation.length > limit) throw new Error('Invalid explanation');
   // The SDK's default generation language is Amharic. Some responses follow
   // that default despite the English instruction. Use its supported English translation target.
   const ethiopic = value => (value.match(/\p{Script=Ethiopic}/gu) ?? []).length;
@@ -20,7 +24,7 @@ export async function explainSimply(client, text) {
     const result = await client.translate.create({ text: explanation, from: 'am', to: 'en' }, { timeout: 20000 });
     explanation = result.text;
   }
-  if (typeof explanation !== 'string' || !latin(explanation) || explanation.length > 20000 ||
+  if (typeof explanation !== 'string' || !latin(explanation) || explanation.length > limit ||
       ethiopic(explanation) > latin(explanation)) throw new Error('Expected English explanation');
   return explanation.trim();
 }

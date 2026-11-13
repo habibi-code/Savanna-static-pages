@@ -60,7 +60,8 @@ Everything else is inert.
 Open the floating **Inklu Companion** button on the lesson page. Its desktop drawer
 becomes a full-screen reader on small screens. Choose **Explain Simply** for a
 beginner-friendly English explanation, **Translate** for Amharic, or **Describe Visuals**
-to read the lesson’s image descriptions. After translating, choose **Generate Audio**
+then **Describe images** for AI descriptions of the lesson artwork. Inklu sends each
+distinct local PNG and a short excerpt of nearby lesson text to Addis AI. After translating, choose **Generate Audio**
 on the passage you want to hear. [Backend setup and testing instructions](backend/README.md#live-lesson-translation)
 
 To embed the companion, copy `assets/learning-companion/`, load `lesson-content.js`,

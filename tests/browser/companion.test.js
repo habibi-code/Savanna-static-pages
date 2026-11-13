@@ -45,6 +45,7 @@ async function setup(t, options = {}) {
     if (url.origin !== origin) return route.abort();
     if (!url.pathname.startsWith('/api/')) return route.continue();
     calls.push([url.pathname, route.request().postDataJSON()]);
+    if (url.pathname === '/api/describe' && options.vision) return options.vision(route);
     if (url.pathname === '/api/translate') {
       await options.waitTranslation;
       if (options.translationError) return route.fulfill({ status: options.translationError, json: { error: 'Mock failure' } });
@@ -96,6 +97,65 @@ test('keyboard launcher, modal focus, mode navigation, escape and no layout shif
   assert(await launcher.evaluate(el => el.matches(':focus')));
 });
 
+test('Describe images reads distinct lesson artwork in order, resumes on retry and announces completion once', async t => {
+  const gate = Promise.withResolvers();
+  let attempts = 0;
+  const { page, launcher, panel, button, calls } = await setup(t, { vision: async route => {
+    attempts++;
+    await gate.promise;
+    if (attempts === 2) return route.fulfill({ status: 502, json: { error: 'private' } });
+    return route.fulfill({ json: { description: 'Visible shapes.\n- A blue circle.' } });
+  } });
+  await launcher.press('Enter');
+  await button('Describe Visuals').press('Enter');
+  const status = panel.getByRole('status');
+  await status.evaluate(el => {
+    window.ready = [];
+    new MutationObserver(() => window.ready.push(el.textContent)).observe(el, { childList: true });
+  });
+  const generate = panel.locator('#describe-images');
+  await generate.press('Enter');
+  await status.filter({ hasText: 'Describing lesson images' }).waitFor();
+  await generate.press('Space');
+  gate.resolve();
+  await status.filter({ hasText: 'try again' }).waitFor();
+  assert(await generate.evaluate(el => el.matches(':focus')));
+  assert.equal(await panel.locator('#visuals section').count(), 1);
+  await generate.press('Space');
+  await status.filter({ hasText: 'Image descriptions ready.' }).waitFor();
+  assert(await generate.evaluate(el => el.matches(':focus')));
+  const doc = panel.getByRole('document', { name: 'Visual descriptions' });
+  assert.equal(await doc.evaluate(el => !!el.closest('[aria-live], [role="status"]')), false);
+  assert.deepEqual(await doc.getByRole('heading').allTextContents(), ['Image 1', 'Image 2']);
+  assert.equal(await doc.getByRole('list').count(), 2);
+  assert.equal(await doc.getByRole('paragraph').count(), 2);
+  await button('Read descriptions').press('Enter');
+  assert(await doc.evaluate(el => el.matches(':focus')));
+  const inputs = calls.map(call => call[1]);
+  assert.equal(inputs.length, 3);
+  assert.equal(inputs[0].asset, 'VA-Content-Banner.png');
+  assert.notEqual(inputs[1].asset, inputs[0].asset);
+  assert.deepEqual(inputs[1], inputs[2]);
+  assert.match(inputs[1].context, /Virtual Assistant profession/);
+  assert.doesNotMatch(inputs[1].context, /Evon afro|VA-Content-Banner/);
+  await button('Describe Visuals').press('Enter');
+  assert.equal(await page.evaluate(() => window.ready.filter(s => s === 'Image descriptions ready.').length), 1);
+});
+
+test('Describe images excludes decorative and unsupported images and updates when only the source changes', async t => {
+  const { page, launcher, panel, button, calls } = await setup(t, { path: '/tests/lesson-content.html' });
+  await page.locator('#example').selectOption('schedule');
+  await launcher.press('Enter');
+  await button('Describe Visuals').press('Enter');
+  await button('Describe images').waitFor();
+  await page.locator('#curriculum_navigation_content img').first().evaluate(el => { el.src = 'https://example.org/remote.png'; });
+  await panel.getByRole('status').filter({ hasText: 'lesson changed' }).waitFor();
+  await button('Describe Visuals').press('Enter');
+  await panel.getByRole('status').filter({ hasText: 'no supported local images' }).waitFor();
+  assert.equal(await button('Describe images').count(), 0);
+  assert.equal(calls.length, 0);
+});
+
 test('the active action keeps a contrasting indicator after focus moves', async t => {
   const { page, launcher, button } = await setup(t);
   await launcher.press('Enter');
@@ -131,7 +191,7 @@ test('Explain Simply uses extracted text, renders semantic blocks, and keeps bac
   await panel.getByRole('status').filter({ hasText: 'Preparing a simple explanation' }).waitFor();
   await page.keyboard.press('Space');
   await button('Describe Visuals').press('Space');
-  await panel.getByText('VA course banner', { exact: true }).waitFor();
+  await button('Describe images').waitFor();
   gate.resolve();
   await panel.getByRole('status').filter({ hasText: 'Simple explanation ready' }).waitFor();
   assert(await button('Describe Visuals').evaluate(el => el.matches(':focus')));

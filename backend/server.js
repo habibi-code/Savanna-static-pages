@@ -1,4 +1,5 @@
 import { createServer } from 'node:http';
+import { createHash } from 'node:crypto';
 import { readFile } from 'node:fs/promises';
 import { extname, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
@@ -6,6 +7,7 @@ import { APIConnectionError, APIConnectionTimeoutError } from 'addisai';
 import { createClient, translateEnglish, UserMessage } from './translation.js';
 import { automaticSpeech } from './automatic-speech.js';
 import { explainSimply } from './simplify.js';
+import { describeImage, loadLessonImage } from './visuals.js';
 
 const maxBytes = 64 * 1024;
 class HttpError extends Error {
@@ -80,22 +82,22 @@ function logTranslationFailure(error, text, sectionIndex, sectionCount, started)
   }));
 }
 
-function cachedText(generate, onFailure) {
+function cachedResult(generate, onFailure) {
   const saved = new Map();
   const pending = new Map();
-  return async (text, sectionIndex, sectionCount) => {
-    if (saved.has(text)) return saved.get(text);
-    if (pending.has(text)) return pending.get(text);
+  return async (key, ...args) => {
+    if (saved.has(key)) return saved.get(key);
+    if (pending.has(key)) return pending.get(key);
     const started = performance.now();
-    const request = generate(text).then(result => {
+    const request = generate(key, ...args).then(result => {
       if (saved.size >= 128) saved.delete(saved.keys().next().value);
-      saved.set(text, result);
+      saved.set(key, result);
       return result;
     }, error => {
-      onFailure?.(error, text, sectionIndex, sectionCount, started);
+      onFailure?.(error, key, ...args, started);
       throw error;
-    }).finally(() => pending.delete(text));
-    pending.set(text, request);
+    }).finally(() => pending.delete(key));
+    pending.set(key, request);
     return request;
   };
 }
@@ -120,10 +122,11 @@ function json(res, status, body) {
 }
 
 export function makeServer(client, directory = fileURLToPath(new URL('./output/', import.meta.url)), allowance = process.env.INKLU_TTS_ALLOWANCE_ETB) {
-  const translate = cachedText(text => translateEnglish(client, text), logTranslationFailure);
-  const simplify = cachedText(text => explainSimply(client, text));
+  const translate = cachedResult(text => translateEnglish(client, text), logTranslationFailure);
+  const simplify = cachedResult(text => explainSimply(client, text));
+  const describe = cachedResult((_key, bytes, context) => describeImage(client, bytes, context));
   const speech = automaticSpeech(client, directory, allowance, process.env.INKLU_CACHED_VOICES);
-  const limits = new Map([['/api/translate', 8], ['/api/simplify', 8], ['/api/speech/listen', 8]]);
+  const limits = new Map([['/api/translate', 8], ['/api/simplify', 8], ['/api/describe', 8], ['/api/speech/listen', 8]]);
   const windows = new Map();
   return createServer({ requestTimeout: 15000, headersTimeout: 10000, connectionsCheckingInterval: 1000 }, async (req, res) => {
     const path = req.url.split('?')[0];
@@ -155,7 +158,18 @@ export function makeServer(client, directory = fileURLToPath(new URL('./output/'
         res.setHeader('Retry-After', Math.ceil((window.until - Date.now()) / 1000));
         throw new HttpError(429, 'Too many requests. Try again in one minute.');
       }
-      const body = await readJson(req, isSpeech ? 2048 : maxBytes);
+      const body = await readJson(req, isSpeech ? 2048 : path === '/api/describe' ? 8192 : maxBytes);
+      if (path === '/api/describe') {
+        if (!body || typeof body.asset !== 'string' || Object.keys(body).length !== 2) throw new HttpError(400, 'Select a lesson image.');
+        const context = readText({ text: body.context }, 1200);
+        const bytes = await loadLessonImage(body.asset);
+        if (!bytes) throw new HttpError(400, 'Select a supported lesson image.');
+        if (!client) throw new HttpError(503, 'Service is not configured.');
+        const key = createHash('sha256').update(bytes).digest('hex') + ':' + context;
+        const description = await describe(key, bytes, context);
+        if (!res.destroyed) json(res, 200, { description });
+        return;
+      }
       const text = readText(body, isSpeech ? 240 : 16000);
       if (isSpeech) {
         if (!/[\p{Script=Ethiopic}&&\p{Letter}]/v.test(text)) throw new HttpError(400, 'Select an Amharic passage.');
@@ -180,6 +194,10 @@ export function makeServer(client, directory = fileURLToPath(new URL('./output/'
       if (res.destroyed) return;
       if (error instanceof HttpError) return json(res, error.status, { error: error.message });
       if (isSpeech) return json(res, 503, { error: 'Audio is temporarily unavailable.' });
+      if (path === '/api/describe') {
+        const status = error instanceof APIConnectionTimeoutError ? 504 : error.status === 429 ? 429 : 502;
+        return json(res, status, { error: 'Image description could not be prepared. Try again.' });
+      }
       if (path === '/api/simplify') {
         const status = error instanceof APIConnectionTimeoutError ? 504 : error.status === 429 ? 429 : 502;
         return json(res, status, { error: 'The explanation could not be prepared. Try again.' });

@@ -93,7 +93,7 @@ header::after {
   display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 9rem), 1fr));
   gap: .45rem; background: var(--paper);
 }
-.actions button {
+.actions button, #describe-images {
   min-height: 2.75rem; padding: .45rem .7rem; border: 1px solid #899d91; border-radius: .55rem;
   background: #fff; color: var(--spruce); font-weight: 650;
 }
@@ -107,7 +107,9 @@ h3 { font: 500 1.7rem/1.2 Georgia, "Times New Roman", serif; margin-block-end: .
 #explanation, #visuals { line-height: 1.65; }
 #explanation > * { margin: .7rem 0; }
 #explanation h4 { margin-top: 1.15rem; }
-#explanation :is(ul,ol), #visuals { padding-inline-start: 1.5rem; }
+#explanation :is(ul,ol), #visuals :is(ul,ol) { padding-inline-start: 1.5rem; }
+#describe-images, #visuals section { margin-block-start: .75rem; }
+#visuals section > * { margin-block: .5rem; }
 #translation { padding: 0; list-style: none; display: grid; gap: .55rem; }
 .passage {
   min-width: 0; background: #fff; border: 1px solid var(--rule); border-radius: .8rem;

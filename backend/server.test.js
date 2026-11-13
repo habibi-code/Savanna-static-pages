@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import { once } from 'node:events';
+import { readFile } from 'node:fs/promises';
 import { request } from 'node:http';
 import test from 'node:test';
 import AddisAI, { APIConnectionTimeoutError } from 'addisai';
@@ -23,6 +24,43 @@ async function start(t, handler = async () => ({ text: amharic }), chat) {
     body: JSON.stringify({ text }) });
   return { base, url, post, calls, server };
 }
+
+test('describe sends the real PNG as multipart data, sanitizes failures and caches only successful results', async t => {
+  const asset = 'VA-Content-Banner.png', context = 'Writing a meeting brief';
+  const bytes = await readFile(new URL('../assets/img/' + asset, import.meta.url));
+  let count = 0;
+  const sdk = new AddisAI({ apiKey: 'offline-only', maxRetries: 0, logLevel: 'off', fetch: async (_url, options) => {
+    count++;
+    const form = options.body;
+    const data = JSON.parse(await form.get('request_data').text());
+    const attachment = form.get(data.attachment_field_names[0]);
+    assert.equal(attachment.type, 'image/png');
+    assert.equal(attachment.name, 'lesson-image.png');
+    assert.deepEqual(Buffer.from(await attachment.arrayBuffer()), bytes);
+    assert.ok(data.prompt.includes(context));
+    return count === 1 ? Response.json({ error: 'private-provider-message' }, { status: 500 }) :
+      Response.json({ data: { response_text: 'A blue rectangle.', finish_reason: 'stop' } });
+  } });
+  const { base } = await start(t, undefined, sdk.chat);
+  const post = () => fetch(base + '/api/describe', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ asset, context }) });
+  const failed = await post();
+  assert.equal(failed.status, 502);
+  assert.doesNotMatch(await failed.text(), /private-provider/);
+  for (const res of await Promise.all([post(), post()])) assert.deepEqual(await res.json(), { description: 'A blue rectangle.' });
+  assert.equal(count, 2);
+});
+
+test('describe rejects URLs, traversal, unsupported or missing files, oversized context and cross-origin requests', async t => {
+  const { base } = await start(t);
+  const post = (asset, context = 'lesson', headers = {}) => fetch(base + '/api/describe', { method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...headers }, body: JSON.stringify({ asset, context }) });
+  for (const asset of ['https://example.org/image.png', '../secret.png', '%2e%2e%2fkey.png', 'slack-logo.svg', 'absent.png']) {
+    assert.equal((await post(asset)).status, 400);
+  }
+  assert.equal((await post('VA-Content-Banner.png', 'a'.repeat(1201))).status, 413);
+  assert.equal((await post('VA-Content-Banner.png', 'lesson', { Origin: 'https://elsewhere.test' })).status, 403);
+});
 
 test('simplify sends lesson data separately from instructions, caches English explanations and validates input', async t => {
   const source = 'Check both calendars before choosing a time.';

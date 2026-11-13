@@ -7,7 +7,7 @@
   const headings = { simplify: 'Simple explanation', translate: 'Amharic translation',
     describe: 'Visual descriptions' };
 
-  function renderExplanation(output, text) {
+  function renderExplanation(output, text, parentLevel = 3) {
     let list;
     for (const raw of text.split(/\r?\n/u)) {
       const line = raw.trim();
@@ -26,7 +26,7 @@
       } else {
         list = null;
         const heading = /^(#{1,6})\s+(.+)/u.exec(line);
-        const block = document.createElement(heading ? 'h' + Math.min(6, 3 + heading[1].length) : 'p');
+        const block = document.createElement(heading ? 'h' + Math.min(6, parentLevel + heading[1].length) : 'p');
         block.textContent = heading ? heading[2] : line;
         output.append(block);
       }
@@ -75,7 +75,8 @@
               <p id="reading-note" hidden></p>
               <div id="explanation" role="document" aria-labelledby="reading-title" tabindex="0" lang="en" hidden></div>
               <ol id="translation" aria-label="Translated passages" hidden></ol>
-              <ul id="visuals" hidden></ul>
+              <button type="button" id="describe-images" aria-controls="visuals" hidden>Describe images</button>
+              <div id="visuals" role="document" aria-labelledby="reading-title" tabindex="0" lang="en" hidden></div>
             </section>
             <p class="sr-only" id="translation-status" role="status" aria-atomic="true"></p>
             <details hidden>
@@ -98,6 +99,7 @@
       details.hidden = new URLSearchParams(location.search).get('inkluDebug') !== '1';
       this.requests = new Map();
       this.outcomes = new Map();
+      root.getElementById('describe-images').addEventListener('click', () => this.describeImages());
       for (const button of root.querySelectorAll('.actions button')) {
         button.setAttribute('aria-pressed', 'false');
         button.addEventListener('click', () => this.choose(button.dataset.action));
@@ -118,6 +120,14 @@
       root.getElementById('close').addEventListener('click', () => panel.close());
       panel.addEventListener('close', () => {
         if (panel.open) return;
+        if (this.requests.has('describe')) {
+          this.requests.get('describe').abort();
+          this.requests.delete('describe');
+          if (this.active === 'describe') {
+            root.getElementById('reading').removeAttribute('aria-busy');
+            this.notify('Select Describe images to continue.');
+          }
+        }
         this.speech?.deactivate();
         toggle.setAttribute('aria-expanded', 'false');
         this.watchLesson();
@@ -157,7 +167,7 @@
       this.previewObserver.observe(this.ownerDocument.documentElement, {
         subtree: true, childList: true, characterData: true, attributes: true,
         attributeFilter: ['id', 'class', 'style', 'role', 'hidden', 'inert', 'aria-hidden',
-          'lang', 'alt', 'aria-label', 'start', 'reversed', 'value'],
+          'lang', 'alt', 'src', 'srcset', 'sizes', 'aria-label', 'start', 'reversed', 'value'],
       });
     }
 
@@ -166,11 +176,13 @@
       this.shadowRoot.getElementById('lesson-title').textContent = extracted?.title || 'Lesson unavailable';
       if (this.shadowRoot.querySelector('details').open) this.renderPreview(lesson);
       const source = lessonText(extracted);
-      if (this.source !== undefined && (lesson !== this.previewLesson || source !== this.source)) {
+      const images = extracted?.visuals ?? [];
+      if (this.source !== undefined && (lesson !== this.previewLesson || source !== this.source ||
+          JSON.stringify(images) !== JSON.stringify(this.images))) {
         this.clearReading('The lesson changed. Choose an action for the new lesson.');
       }
       this.source = source;
-      this.images = extracted?.images ?? [];
+      this.images = images;
       this.previewLesson = lesson;
     }
 
@@ -187,6 +199,7 @@
       this.speech?.setTranslation('');
       for (const button of root.querySelectorAll('.actions button')) button.setAttribute('aria-pressed', 'false');
       for (const id of ['translation', 'explanation', 'visuals']) root.getElementById(id).replaceChildren();
+      root.getElementById('describe-images').textContent = 'Describe images';
       root.getElementById('reading').hidden = true;
       root.getElementById('reading').removeAttribute('aria-busy');
       this.notify(message);
@@ -219,16 +232,18 @@
       passages.hidden = action !== 'translate';
       root.getElementById('explanation').hidden = action !== 'simplify' || !this.outcomes.has('simplify');
       const visuals = root.getElementById('visuals');
-      visuals.hidden = action !== 'describe';
+      visuals.hidden = action !== 'describe' || !visuals.childElementCount;
+      root.getElementById('describe-images').hidden = action !== 'describe' || !this.images.some(image => image.asset);
       note.hidden = true;
       reading.removeAttribute('aria-busy');
       if (action === 'describe') {
-        visuals.replaceChildren(...this.images.map(label => {
-          const item = document.createElement('li');
-          item.textContent = label;
-          return item;
-        }));
-        this.notify(this.images.length ? 'Image descriptions ready.' : 'This lesson has no images to describe.', !this.images.length);
+        if (this.requests.has(action)) {
+          reading.setAttribute('aria-busy', 'true');
+          this.notify('Describing lesson images…');
+        } else if (this.outcomes.has(action)) this.notify('', false);
+        else if (!this.images.length) this.notify('This lesson has no images to describe.');
+        else if (!this.images.some(image => image.asset)) this.notify('This lesson has no supported local images.');
+        else this.notify('Generate AI descriptions for the images in this lesson.');
         return;
       }
       if (this.requests.has(action)) {
@@ -241,6 +256,54 @@
         return;
       }
       this.requestText(action);
+    }
+
+    async describeImages() {
+      if (this.requests.has('describe')) return;
+      const root = this.shadowRoot;
+      const visuals = root.getElementById('visuals');
+      if (this.outcomes.has('describe')) {
+        visuals.focus();
+        return;
+      }
+      const reading = root.getElementById('reading');
+      const controller = new AbortController();
+      this.requests.set('describe', controller);
+      reading.setAttribute('aria-busy', 'true');
+      this.notify('Describing lesson images…');
+      try {
+        // Resume at the first unfinished image after a learner-initiated retry.
+        for (let i = visuals.childElementCount; i < this.images.length; i++) {
+          const { asset, context } = this.images[i];
+          let description = 'This image is unavailable for description.';
+          if (asset) {
+            const response = await fetch('/api/describe', { method: 'POST', redirect: 'error',
+              headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ asset, context }),
+              signal: AbortSignal.any([controller.signal, AbortSignal.timeout(75000)]) });
+            if (!response.ok) throw new Error();
+            description = (await response.json()).description;
+            if (typeof description !== 'string' || !description.trim()) throw new Error();
+          }
+          if (controller.signal.aborted) return;
+          const section = document.createElement('section');
+          const heading = document.createElement('h4');
+          heading.textContent = 'Image ' + (i + 1);
+          section.append(heading);
+          renderExplanation(section, description, 4);
+          visuals.append(section);
+          visuals.hidden = this.active !== 'describe';
+        }
+        this.outcomes.set('describe', 'Image descriptions ready.');
+        root.getElementById('describe-images').textContent = 'Read descriptions';
+        this.notify('Image descriptions ready.', this.active === 'describe');
+      } catch {
+        if (!controller.signal.aborted) this.notify('Could not describe the image. Select Describe images to try again.', this.active === 'describe');
+      } finally {
+        if (this.requests.get('describe') === controller) {
+          this.requests.delete('describe');
+          if (this.active === 'describe') reading.removeAttribute('aria-busy');
+        }
+      }
     }
 
     loadingMessage(action) {

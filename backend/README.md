@@ -30,9 +30,22 @@ state are free. Startup and automated tests make zero paid requests.
    the button again uses the server cache while the entry is retained.
 4. Open [the Savanna lesson](http://127.0.0.1:3000/pages/concept-with-navigation.html)
    to try the same control on the full lesson. Its longer text requires multiple
-   provider requests. The developer preview (`?inkluDebug=1`), Describe Visuals, and Escape-to-close also
+   provider requests. The developer preview (`?inkluDebug=1`) and Escape-to-close also
    work with the API offline. To test an error for free, stop the server while the
    page is open and activate the action. Restart it before a user-initiated retry.
+
+### Image descriptions
+
+Use the same server and `ADDIS_API_KEY`. Open **Describe Visuals**, then activate
+**Describe images** to generate English descriptions. The backend uses multipart
+image input with the provider-selected `addis-1-alef` model in `addisai@0.14.0`.
+If a response is predominantly Amharic, the backend uses Addis translation to return English.
+Each distinct bundled PNG is sent with a short lesson excerpt. Both calls can incur charges.
+See the [official SDK attachment example](https://github.com/Addis-AI-Org/addisai-js#attachments--audio-input).
+
+`POST /api/describe` accepts a PNG basename from `assets/img` and up to 1,200
+characters of context. Images must be at most 2 MiB and 16 megapixels. Descriptions
+are cached by image bytes and context for the server process lifetime (up to 128 entries).
 
 The browser posts JSON `{"text":"Check both time zones."}` to `/api/translate`.
 Success returns `{"translation":"…"}`; errors return a safe `error` string and
