@@ -7,14 +7,14 @@ import AddisAI, { APIConnectionTimeoutError } from 'addisai';
 import { makeServer } from './server.js';
 
 const amharic = 'ሁለቱንም የሰዓት ሰቆች ያረጋግጡ።';
-async function start(t, handler = async () => ({ text: amharic }), chat) {
+async function start(t, handler = async () => ({ text: amharic }), chat, deployment) {
   const calls = [];
   const client = { chat, translate: { async create(input, options) {
     calls.push(input);
     assert.equal(options.timeout, 20000);
     return handler(input);
   } } };
-  const server = makeServer(client);
+  const server = makeServer(client, undefined, undefined, deployment);
   server.listen(0, '127.0.0.1');
   await once(server, 'listening');
   t.after(() => { server.closeAllConnections(); return new Promise(resolve => server.close(resolve)); });
@@ -210,6 +210,40 @@ test('invalid input, unsupported media, wrong method and foreign origins never r
   assert.equal((await post('x', { Origin: 'null' })).status, 403);
   assert.equal((await fetch(url)).status, 405);
   assert.equal(calls.length, 0);
+});
+
+test('configured API Host and lesson Origins are exact and preflight reaches no provider', async t => {
+  const deployment = { publicOrigin: 'https://api.example.org', lessonOrigins: 'https://school.example.org' };
+  const { url, calls } = await start(t, undefined, undefined, deployment);
+  const headers = { Host: 'api.example.org', Origin: 'https://school.example.org', 'Content-Type': 'application/json' };
+  // node:http permits an explicit Host header independently of the loopback connection address.
+  async function send(method, extra) {
+    const req = request(url, { method, headers: { ...headers, ...extra } });
+    const incoming = once(req, 'response');
+    req.end(method === 'POST' ? JSON.stringify({ text: 'Compare calendars.' }) : undefined);
+    const [res] = await incoming;
+    res.resume();
+    return res;
+  }
+  const preflight = { 'Access-Control-Request-Method': 'POST', 'Access-Control-Request-Headers': 'content-type' };
+  for (const extra of [{ Host: 'localhost', 'X-Forwarded-Host': headers.Host }, { Origin: 'null' },
+    { Origin: headers.Origin + '.evil.test' }, { Origin: 'http://school.example.org' }]) {
+    const response = await send('POST', extra);
+    assert.equal(response.statusCode, 403);
+    assert.equal(response.headers['access-control-allow-origin'], undefined);
+  }
+  assert.equal((await send('OPTIONS', { ...preflight, 'Access-Control-Request-Method': 'DELETE' })).statusCode, 403);
+  assert.equal((await send('OPTIONS', { ...preflight, 'Access-Control-Request-Headers': 'authorization' })).statusCode, 403);
+  const allowed = await send('OPTIONS', preflight);
+  assert.equal(allowed.statusCode, 204);
+  assert.equal(allowed.headers['access-control-allow-origin'], headers.Origin);
+  assert.equal(allowed.headers['access-control-allow-credentials'], undefined);
+  assert.deepEqual(calls, []);
+  assert.equal((await send('POST')).statusCode, 200);
+  assert.equal((await send('POST', { Origin: deployment.publicOrigin })).statusCode, 200);
+  for (const value of ['*', 'null', 'https://*.example.org', 'https://school.example.org/path', 'http://school.example.org']) {
+    assert.throws(() => makeServer(null, undefined, undefined, { lessonOrigins: value }));
+  }
 });
 
 test('chunked uploads are bounded without trusting Content-Length', async t => {

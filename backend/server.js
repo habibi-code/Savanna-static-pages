@@ -121,7 +121,21 @@ function json(res, status, body) {
   res.end(JSON.stringify(body));
 }
 
-export function makeServer(client, directory = fileURLToPath(new URL('./output/', import.meta.url)), allowance = process.env.INKLU_TTS_ALLOWANCE_ETB) {
+function exactOrigin(value) {
+  const url = new URL(value);
+  const loopback = ['localhost', '127.0.0.1', '[::1]'].includes(url.hostname);
+  if (url.origin !== value || url.hostname.includes('*') ||
+      !(url.protocol === 'https:' || (url.protocol === 'http:' && loopback))) {
+    throw new Error('Configure an exact HTTPS origin (HTTP is allowed for loopback).');
+  }
+  return url;
+}
+
+export function makeServer(client, directory = fileURLToPath(new URL('./output/', import.meta.url)), allowance = process.env.INKLU_TTS_ALLOWANCE_ETB,
+  deployment = {}) {
+  const publicOrigin = deployment.publicOrigin ? exactOrigin(deployment.publicOrigin) : null;
+  const lessonOrigins = new Set((deployment.lessonOrigins ?? '').split(',').map(value => value.trim())
+    .filter(Boolean).map(value => exactOrigin(value).origin));
   const translate = cachedResult(text => translateEnglish(client, text), logTranslationFailure);
   const simplify = cachedResult(text => explainSimply(client, text));
   const describe = cachedResult((_key, bytes, context) => describeImage(client, bytes, context));
@@ -137,13 +151,26 @@ export function makeServer(client, directory = fileURLToPath(new URL('./output/'
       const port = req.socket.localPort;
       const host = req.headers.host;
       const suffix = port === 80 ? '' : ':' + port;
-      if (!['localhost' + suffix, '127.0.0.1' + suffix].includes(host)) throw new HttpError(403, 'Host is not allowed.');
+      const validHost = publicOrigin ? host === publicOrigin.host : ['localhost' + suffix, '127.0.0.1' + suffix].includes(host);
+      if (!validHost) throw new HttpError(403, 'Host is not allowed.');
       if (!limits.has(path)) {
         if (req.method !== 'GET') throw new HttpError(404, 'Not found.');
         return await servePage(path, res);
       }
-      if (req.headers.origin !== undefined && req.headers.origin !== 'http://' + host) {
-        throw new HttpError(403, 'Use the same local origin for the lesson and API.');
+      const origin = req.headers.origin;
+      const crossOrigin = origin !== undefined && origin !== (publicOrigin?.origin ?? 'http://' + host);
+      res.setHeader('Vary', 'Origin');
+      if (crossOrigin) {
+        if (!lessonOrigins.has(origin)) throw new HttpError(403, 'Lesson origin is not allowed.');
+        res.setHeader('Access-Control-Allow-Origin', origin);
+        if (req.method === 'OPTIONS') {
+          if (req.headers['access-control-request-method'] !== 'POST' ||
+              req.headers['access-control-request-headers']?.toLowerCase().trim() !== 'content-type') {
+            throw new HttpError(403, 'Preflight is not allowed.');
+          }
+          res.writeHead(204, { 'Access-Control-Allow-Methods': 'POST', 'Access-Control-Allow-Headers': 'Content-Type' }).end();
+          return;
+        }
       }
       if (req.method !== 'POST') {
         res.setHeader('Allow', 'POST');
@@ -162,7 +189,7 @@ export function makeServer(client, directory = fileURLToPath(new URL('./output/'
       if (path === '/api/describe') {
         if (!body || typeof body.asset !== 'string' || Object.keys(body).length !== 2) throw new HttpError(400, 'Select a lesson image.');
         const context = readText({ text: body.context }, 1200);
-        const bytes = await loadLessonImage(body.asset);
+        const bytes = await loadLessonImage(body.asset, deployment.imageDirectory);
         if (!bytes) throw new HttpError(400, 'Select a supported lesson image.');
         if (!client) throw new HttpError(503, 'Service is not configured.');
         const key = createHash('sha256').update(bytes).digest('hex') + ':' + context;
@@ -212,7 +239,10 @@ export function makeServer(client, directory = fileURLToPath(new URL('./output/'
 
 if (process.argv[1] && pathToFileURL(resolve(process.argv[1])).href === import.meta.url) {
   const port = Number(process.env.PORT || 3000);
-  const server = makeServer(process.env.ADDIS_API_KEY?.trim() ? createClient() : null);
+  const server = makeServer(process.env.ADDIS_API_KEY?.trim() ? createClient() : null, undefined, undefined, {
+    publicOrigin: process.env.INKLU_PUBLIC_ORIGIN, lessonOrigins: process.env.INKLU_LESSON_ORIGINS,
+    imageDirectory: process.env.INKLU_IMAGE_DIRECTORY || undefined,
+  });
   server.on('error', () => { console.error('Could not start the translation server. Check PORT.'); process.exitCode = 1; });
   server.listen(port, '127.0.0.1', () => console.log('Savanna is available at http://127.0.0.1:' + server.address().port));
 }

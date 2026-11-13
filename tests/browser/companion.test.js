@@ -67,6 +67,53 @@ async function setup(t, options = {}) {
   return { page, calls, launcher, button, panel: page.getByRole('dialog', { name: 'Inklu' }) };
 }
 
+test('generic host scopes extraction and routes all four actions to the configured API base', async t => {
+  const { page, panel, launcher, button, calls } = await setup(t, { path: '/pages/generic-lesson.html?inkluDebug=1' });
+  const api = 'https://inklu.example.test/lms/api/';
+  const received = [];
+  await page.route(api + '**', route => {
+    const name = route.request().url().slice(api.length);
+    received.push([name, route.request().postDataJSON()]);
+    if (name === 'speech/listen') return route.fulfill({ contentType: 'audio/mpeg', body: mp3 });
+    return route.fulfill({ json: { simplify: { explanation: 'Check the time.' },
+      translate: { translation: sample }, describe: { description: 'Course artwork.' } }[name] });
+  });
+  // A host can publish images under its own path and keep matching PNGs on the API server.
+  await page.locator('alx-learning-companion').evaluate((el, api) => {
+    el.remove();
+    el.setAttribute('image-base', '/course/art/');
+    el.setAttribute('api-base', api);
+    el.setAttribute('exclude-selector', '.teacher-only');
+    document.querySelector('.material ol').className = 'progress';
+    const privateNote = document.createElement('p');
+    privateNote.className = 'teacher-only';
+    privateNote.textContent = 'Teacher notes';
+    document.querySelector('.material').append(privateNote);
+    const image = document.querySelector('.material img');
+    image.src = '/course/art/calendar.png';
+    image.alt = 'Calendar';
+    document.body.append(el);
+  }, api);
+  await launcher.press('Enter');
+  assert.equal(await panel.locator('#lesson-title').textContent(), 'Reading a calendar invitation');
+  await button('Explain Simply').press('Enter');
+  await panel.getByText('Check the time.', { exact: true }).waitFor();
+  await button('Translate').press('Enter');
+  await button('Generate Audio for passage 1').press('Enter');
+  await panel.getByText('Playing', { exact: true }).waitFor();
+  await button('Describe Visuals').press('Enter');
+  await button('Describe images').press('Enter');
+  await panel.getByText('Course artwork.', { exact: true }).waitFor();
+  assert.deepEqual(received.map(([name]) => name), ['simplify', 'translate', 'speech/listen', 'describe']);
+  assert.match(received[0][1].text, /overlapping appointments/);
+  assert.doesNotMatch(received[0][1].text, /Course administration|Workplace skills|Teacher notes/);
+  assert.equal(received[3][1].asset, 'calendar.png');
+  assert.match(received[3][1].context, /Two tools for reviewing/);
+  assert.deepEqual(calls, []);
+  await page.keyboard.press('Escape');
+  assert(await launcher.evaluate(el => el.matches(':focus')));
+});
+
 test('keyboard launcher, modal focus, mode navigation, escape and no layout shift', async t => {
   const { page, launcher, panel, calls, button } = await setup(t);
   const position = () => page.locator('.formatted-content').first().evaluate(el => el.getBoundingClientRect().top + scrollY);

@@ -68,10 +68,36 @@ To embed the companion, copy `assets/learning-companion/`, load `lesson-content.
 `amharic-audio.js`, and `learning-companion.js` in order as classic scripts, and place `<alx-learning-companion></alx-learning-companion>`
 at the desired location. The widget loads its neighboring stylesheet into its shadow root.
 The debug preview and Amharic translation both read the current lesson through the extractor.
-The translation action sends its title and body to the same-origin `POST /api/translate` endpoint.
+By default translation sends the title and body to the same-origin `POST /api/translate` endpoint.
 After translation, choose **Generate Audio** on a passage. Inklu plays a saved clip or
 generates one within the allowance configured on the server. See the
 [speech controls and testing guide](backend/README.md#amharic-audio).
+
+### Install on another lesson site
+
+1. Use Node.js 22.9 or later. From this repository run `npm.cmd ci --prefix backend`,
+   then `npm.cmd start --prefix backend`. Open the [standalone HTML lesson](http://127.0.0.1:3000/pages/generic-lesson.html?inkluDebug=1).
+   Open Inklu and expand the debug preview to verify the title and reading order without a provider key.
+   For live generation set `ADDIS_API_KEY` in the backend's ignored `.env` file and restart.
+2. Copy the companion directory to your site's public assets and load the three scripts
+   in the order shown in [the example page](pages/generic-lesson.html). Keep the CSS next to
+   `learning-companion.js`. No Savanna stylesheet or global application script is required.
+3. Place this element in persistent page markup. Set selectors before connecting it.
+
+   ```html
+   <alx-learning-companion lesson-selector="article.current"
+     title-selector="h2.lesson-name" content-selector=".reading"
+     image-base="/course/images/" api-base="/inklu/api/"></alx-learning-companion>
+   ```
+
+   The nearest matching ancestor takes precedence over the first document match. The title
+   and body selectors refer to descendants of that root. With a custom lesson selector,
+   omitting the content selector reads the root itself. Missing or invalid selectors yield
+   empty results. Use semantic navigation and controls or set `exclude-selector` for additional host-specific exclusions.
+4. Route the chosen API prefix to the backend's `/api/` routes. For a separate API origin,
+   use an absolute HTTPS `api-base` and configure the server as described in the
+   [deployment audit](docs/portability.md). For image descriptions, publish the PNGs
+   under the lesson site's `image-base` and install identical files in the API image directory.
 
 ### Lesson extraction
 

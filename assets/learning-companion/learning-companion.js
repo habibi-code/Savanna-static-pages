@@ -87,7 +87,8 @@
           </div>
         </dialog>`;
 
-      if (window.InkluAmharicAudio) this.speech = new window.InkluAmharicAudio(root.getElementById('translation'));
+      if (window.InkluAmharicAudio) this.speech = new window.InkluAmharicAudio(root.getElementById('translation'),
+        () => this.apiUrl('speech/listen'));
       const link = document.createElement('link');
       link.rel = 'stylesheet';
       link.href = stylesheet;
@@ -146,11 +147,21 @@
     }
 
     findLesson() {
-      return this.closest('#curriculum_navigation_content') ||
-        this.ownerDocument.getElementById('curriculum_navigation_content');
+      return window.InkluLessonContent?.findLesson(this, this.hostConfig);
+    }
+
+    apiUrl(route) {
+      const base = new URL(this.getAttribute('api-base') ?? '/api/', location.href);
+      const localHttp = base.protocol === 'http:' && (base.origin === location.origin ||
+        ['localhost', '127.0.0.1', '[::1]'].includes(base.hostname));
+      if (!['http:', 'https:'].includes(location.protocol) || (base.protocol !== 'https:' && !localHttp) ||
+          base.username || base.password || base.search || base.hash) throw new Error('Invalid API base');
+      base.pathname = base.pathname.replace(/\/?$/, '/') + route;
+      return base.href;
     }
 
     connectedCallback() {
+      this.hostConfig = window.InkluLessonContent?.hostFor(this);
       this.watchLesson();
     }
 
@@ -166,13 +177,11 @@
       this.refreshLesson(this.findLesson());
       this.previewObserver.observe(this.ownerDocument.documentElement, {
         subtree: true, childList: true, characterData: true, attributes: true,
-        attributeFilter: ['id', 'class', 'style', 'role', 'hidden', 'inert', 'aria-hidden',
-          'lang', 'alt', 'src', 'srcset', 'sizes', 'aria-label', 'start', 'reversed', 'value'],
       });
     }
 
     refreshLesson(lesson) {
-      const extracted = window.SavannaLessonContent?.extractLesson(lesson);
+      const extracted = window.InkluLessonContent?.extractLesson(lesson, this.hostConfig);
       this.shadowRoot.getElementById('lesson-title').textContent = extracted?.title || 'Lesson unavailable';
       if (this.shadowRoot.querySelector('details').open) this.renderPreview(lesson);
       const source = lessonText(extracted);
@@ -277,7 +286,7 @@
           const { asset, context } = this.images[i];
           let description = 'This image is unavailable for description.';
           if (asset) {
-            const response = await fetch('/api/describe', { method: 'POST', redirect: 'error',
+            const response = await fetch(this.apiUrl('describe'), { method: 'POST', redirect: 'error',
               headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ asset, context }),
               signal: AbortSignal.any([controller.signal, AbortSignal.timeout(75000)]) });
             if (!response.ok) throw new Error();
@@ -319,7 +328,7 @@
         return;
       }
       if (!['http:', 'https:'].includes(location.protocol)) {
-        this.notify('Open this lesson through the local Savanna server to use this action.');
+        this.notify('Open this lesson over HTTP or HTTPS to use this action.');
         return;
       }
       const controller = new AbortController();
@@ -330,7 +339,7 @@
       const timer = setTimeout(() => controller.abort(), 90000);
       let message;
       try {
-        const response = await fetch('/api/' + action, {
+        const response = await fetch(this.apiUrl(action), {
           method: 'POST', headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ text: this.source }), signal: controller.signal, redirect: 'error',
         });
@@ -381,7 +390,7 @@
     }
 
     renderPreview(lesson) {
-      const extracted = window.SavannaLessonContent?.extractLesson(lesson);
+      const extracted = window.InkluLessonContent?.extractLesson(lesson, this.hostConfig);
       const preview = this.shadowRoot.getElementById('preview');
       const next = preview.cloneNode(false);
       const title = document.createElement('h2');

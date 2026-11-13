@@ -3,7 +3,7 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { englishResult } from './simplify.js';
 
-const directory = fileURLToPath(new URL('../assets/img', import.meta.url));
+const bundledImages = fileURLToPath(new URL('../assets/img', import.meta.url));
 const signature = Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]);
 const instructions = [
   'Write a concise English description of the attached image for a learner using a screen reader.',
@@ -14,7 +14,7 @@ const instructions = [
 ].join(' ');
 
 // The client can identify only a bundled PNG by basename. No URL fetch or upload.
-export async function loadLessonImage(name) {
+export async function loadLessonImage(name, directory = bundledImages) {
   if (typeof name !== 'string' || !/^[a-z\d][a-z\d_-]{0,119}\.png$/i.test(name)) return null;
   const path = await realpath(join(directory, name)).catch(() => null);
   if (!path || dirname(path) !== await realpath(directory)) return null;

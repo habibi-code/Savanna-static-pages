@@ -15,8 +15,8 @@
     return parts;
   }
 
-  async function audioForPassage(text, signal) {
-    const response = await fetch('/api/speech/listen', {
+  async function audioForPassage(url, text, signal) {
+    const response = await fetch(url, {
       method: 'POST', headers: { 'Content-Type': 'application/json' }, signal, redirect: 'error',
       body: JSON.stringify({ text }),
     });
@@ -26,7 +26,8 @@
   }
 
   window.InkluAmharicAudio = class {
-    constructor(container) {
+    constructor(container, audioUrl = () => '/api/speech/listen') {
+      this.audioUrl = audioUrl;
       this.tools = document.createElement('div');
       this.tools.className = 'audio-tools';
       this.tools.innerHTML = `
@@ -141,7 +142,7 @@
       this.listen.setAttribute('aria-busy', 'true');
       this.setStatus('Generating audio…');
       try {
-        const { clip, message } = await audioForPassage(this.text, controller.signal);
+        const { clip, message } = await audioForPassage(this.audioUrl(), this.text, controller.signal);
         if (controller !== this.request) return;
         if (!clip) {
           this.setStatus(message);

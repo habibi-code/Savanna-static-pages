@@ -62,10 +62,10 @@ stay in process memory until eviction or restart. A failed section is eligible
 for manual retry. Dismissing an in-flight result can still incur charges for
 work already sent to the provider.
 
-The relative API URL uses the page's origin. There is no CORS setup for the
-bundled server. A separate development frontend should proxy `/api/translate`
-through its own trusted same-origin backend; direct cross-origin and `file://`
-API requests are unsupported. The local server checks Host and Origin, serves
+The default API URL uses the page's origin. A separate frontend can proxy all four
+routes through its own origin or explicitly configure the API origin and allowed
+lesson origins as described in the [deployment audit](../docs/portability.md).
+The local server checks Host and Origin, serves
 only public site paths, and omits keys, provider error bodies, and lesson text
 from logs. Any local process can call this endpoint. It is intended for local
 development; a shared deployment needs authentication and per-user spending limits.
