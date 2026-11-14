@@ -48,6 +48,20 @@
       EN
     </button>
 
+    <!-- Voice Guide (Self-voicing focus reader) -->
+    <button type="button" id="voice-guide-btn" class="icon-btn"
+            aria-pressed="true"
+            aria-label="Voice guidance enabled. Click to disable."
+            title="Voice guidance (reads elements on focus)">
+      <svg id="voice-guide-icon" xmlns="http://www.w3.org/2000/svg" width="18" height="18"
+           viewBox="0 0 24 24" fill="none" stroke="currentColor"
+           stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
+           aria-hidden="true" focusable="false">
+        <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/>
+        <path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"/>
+      </svg>
+    </button>
+
     <!-- Minimise -->
     <button type="button" id="minimize-btn" class="icon-btn"
             aria-label="Minimise assistant">
@@ -183,7 +197,9 @@
 
   /* ── Language state ──────────────────────────────────────── */
   const LANG_KEY    = 'savanna_lang';
+  const VOICE_GUIDE_KEY = 'savanna_voice_guide';
   let   isAmharic   = localStorage.getItem(LANG_KEY) === 'am';
+  let   voiceGuideEnabled = localStorage.getItem(VOICE_GUIDE_KEY) !== 'false';
   let   isListening = false;
   let   recognition = null;
 
@@ -191,6 +207,7 @@
   const htmlEl        = document.documentElement;
   const widgetTitle   = document.getElementById('widget-title');
   const langToggleBtn = document.getElementById('lang-toggle-btn');
+  const voiceGuideBtn = document.getElementById('voice-guide-btn');
   const closeBtn      = document.getElementById('close-btn');
   const minimizeBtn   = document.getElementById('minimize-btn');
   const messageList   = document.getElementById('message-list');
@@ -221,6 +238,18 @@
       closeLabel:   'Close assistant',
       minimiseLabel:'Minimise assistant',
       thinking:     'Thinking…',
+      voiceGuideOn: 'Voice guidance enabled. Click to disable.',
+      voiceGuideOff:'Voice guidance disabled. Click to enable.',
+      voiceGuideActive: 'Voice guidance enabled',
+      voiceGuideInactive: 'Voice guidance disabled',
+      roleButton:   'button',
+      roleLink:     'link',
+      roleTextEntry:'text entry',
+      statePressed: 'pressed',
+      stateNotPressed: 'not pressed',
+      stateExpanded:'expanded',
+      stateCollapsed:'collapsed',
+      stateDisabled:'disabled',
     },
     am: {
       title:        'ሳቫና ረዳት',
@@ -234,6 +263,18 @@
       closeLabel:   'ረዳትን ዝጋ',
       minimiseLabel:'ረዳቱን አሳንስ',
       thinking:     'እያሰብኩ…',
+      voiceGuideOn: 'የድምፅ መመሪያ ነቅቷል። ለማጥፋት ይጫኑ።',
+      voiceGuideOff:'የድምፅ መመሪያ ጠፍቷል። ለማብራት ይጫኑ።',
+      voiceGuideActive: 'የድምፅ መመሪያ ነቅቷል',
+      voiceGuideInactive: 'የድምፅ መመሪያ ጠፍቷል',
+      roleButton:   'አዝራር',
+      roleLink:     'አገናኝ',
+      roleTextEntry:'የፅሑፍ ማስገቢያ',
+      statePressed: 'ነቅቷል',
+      stateNotPressed: 'ጠፍቷል',
+      stateExpanded:'ተከፍቷል',
+      stateCollapsed:'ተዘግቷል',
+      stateDisabled:'ተሰናክሏል',
     }
   };
 
@@ -246,6 +287,9 @@
     langToggleBtn.textContent = t.langBtn;
     langToggleBtn.setAttribute('aria-label', t.langLabel);
     langToggleBtn.setAttribute('aria-pressed', isAmharic ? 'true' : 'false');
+    voiceGuideBtn.setAttribute('aria-label', voiceGuideEnabled ? t.voiceGuideOn : t.voiceGuideOff);
+    voiceGuideBtn.setAttribute('aria-pressed', voiceGuideEnabled ? 'true' : 'false');
+    voiceGuideBtn.style.opacity = voiceGuideEnabled ? '1' : '0.6';
     inputLabel.textContent    = t.inputPlaceholder;
     sendBtnLabel.textContent  = t.send;
     sendBtn.setAttribute('aria-label', t.send + ' message');
@@ -264,6 +308,18 @@
   langToggleBtn.addEventListener('click', function () {
     isAmharic = !isAmharic;
     applyLanguage();
+    speakFocus(isAmharic ? 'ቋንቋ ወደ አማርኛ ተቀይሯል' : 'Language switched to English');
+  });
+
+  /* ── Voice guidance toggle ───────────────────────────────── */
+  voiceGuideBtn.addEventListener('click', function () {
+    voiceGuideEnabled = !voiceGuideEnabled;
+    localStorage.setItem(VOICE_GUIDE_KEY, voiceGuideEnabled ? 'true' : 'false');
+    applyLanguage();
+    const msg = voiceGuideEnabled
+      ? (isAmharic ? i18n.am.voiceGuideActive : i18n.en.voiceGuideActive)
+      : (isAmharic ? i18n.am.voiceGuideInactive : i18n.en.voiceGuideInactive);
+    speakFocus(msg);
   });
 
   /* ── Close / minimise ────────────────────────────────────── */
@@ -274,10 +330,73 @@
     parent.postMessage({ type: 'close' }, '*');
   });
 
+  /* ── Built-in Focus Reader / Self-Voicing ─────────────────── */
+  function speakFocus(text) {
+    if (!voiceGuideEnabled || !window.speechSynthesis || !text) return;
+    try {
+      window.speechSynthesis.cancel();
+      const utt = new SpeechSynthesisUtterance(text);
+      utt.lang = isAmharic ? 'am-ET' : 'en-US';
+      utt.rate = 1.05;
+      window.speechSynthesis.speak(utt);
+    } catch (_) {}
+  }
+
+  function getAccessibleDescription(el) {
+    if (!el || el === document.body || el === document.documentElement) return null;
+    const lang = isAmharic ? 'am' : 'en';
+    const t = i18n[lang];
+
+    let label = el.getAttribute('aria-label') || '';
+    if (!label && el.getAttribute('aria-labelledby')) {
+      const ref = document.getElementById(el.getAttribute('aria-labelledby'));
+      if (ref) label = ref.textContent.trim();
+    }
+    if (!label && el.placeholder) label = el.placeholder;
+    if (!label && el.title) label = el.title;
+    if (!label && (el.tagName === 'BUTTON' || el.tagName === 'A')) {
+      label = el.textContent.trim();
+    }
+
+    let role = el.getAttribute('role');
+    if (!role) {
+      if (el.tagName === 'BUTTON') role = t.roleButton;
+      else if (el.tagName === 'A') role = t.roleLink;
+      else if (el.tagName === 'TEXTAREA' || (el.tagName === 'INPUT' && el.type === 'text')) {
+        role = t.roleTextEntry;
+      }
+    }
+
+    const states = [];
+    if (el.hasAttribute('aria-pressed')) {
+      const isPressed = el.getAttribute('aria-pressed') === 'true';
+      states.push(isPressed ? t.statePressed : t.stateNotPressed);
+    }
+    if (el.hasAttribute('aria-expanded')) {
+      const isExpanded = el.getAttribute('aria-expanded') === 'true';
+      states.push(isExpanded ? t.stateExpanded : t.stateCollapsed);
+    }
+    if (el.disabled) {
+      states.push(t.stateDisabled);
+    }
+
+    if (!label && !role) return null;
+    return [label, role, states.join(', ')].filter(Boolean).join(', ');
+  }
+
+  document.addEventListener('focusin', function (e) {
+    const desc = getAccessibleDescription(e.target);
+    if (desc) speakFocus(desc);
+  });
+
   /* ── Focus management (from parent) ─────────────────────── */
   window.addEventListener('message', function (e) {
     if (e.data && e.data.type === 'focus') {
       chatInput.focus();
+      const welcome = isAmharic
+        ? 'ሳቫና ረዳት ተከፍቷል። መልዕክትዎን በእንግሊዝኛ ወይም በአማርኛ ይፃፉ።'
+        : 'Savanna assistant opened. Type your message in English or Amharic.';
+      speakFocus(welcome);
     }
   });
 

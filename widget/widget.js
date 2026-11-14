@@ -178,4 +178,69 @@
   document.addEventListener('keydown', function (e) {
     if (e.key === 'Escape' && isOpen) closeWidget();
   });
+
+  /* ── 8. Built-in Focus Reader / Self-Voicing on Host Page ─────────────── */
+  const VOICE_GUIDE_KEY = 'savanna_voice_guide';
+
+  function isVoiceGuideEnabled() {
+    return localStorage.getItem(VOICE_GUIDE_KEY) !== 'false';
+  }
+
+  function speakHost(text) {
+    if (!isVoiceGuideEnabled() || !window.speechSynthesis || !text) return;
+    try {
+      window.speechSynthesis.cancel();
+      const utt = new SpeechSynthesisUtterance(text);
+      utt.lang = 'en-US';
+      utt.rate = 1.05;
+      window.speechSynthesis.speak(utt);
+    } catch (_) {}
+  }
+
+  function getHostElementDescription(el) {
+    if (!el || el === document.body || el === document.documentElement) return null;
+    let label = el.getAttribute('aria-label') || '';
+    if (!label && el.placeholder) label = el.placeholder;
+    if (!label && el.innerText && el.innerText.trim().length > 0 && el.innerText.trim().length < 80) {
+      label = el.innerText.trim();
+    }
+    let role = el.getAttribute('role');
+    if (!role) {
+      if (el.tagName === 'BUTTON') role = 'button';
+      else if (el.tagName === 'A') role = 'link';
+      else if (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA') role = 'edit text';
+    }
+    const states = [];
+    if (el.hasAttribute('aria-expanded')) {
+      states.push(el.getAttribute('aria-expanded') === 'true' ? 'expanded' : 'collapsed');
+    }
+    if (el.hasAttribute('aria-pressed')) {
+      states.push(el.getAttribute('aria-pressed') === 'true' ? 'pressed' : 'not pressed');
+    }
+    if (!label && !role) return null;
+    return [label, role, states.join(', ')].filter(Boolean).join(', ');
+  }
+
+  // Speak trigger button specifically when focused
+  trigger.addEventListener('focus', function () {
+    const desc = isOpen ? 'Close learning assistant, button, expanded' : 'Open learning assistant, button, collapsed';
+    speakHost(desc);
+  });
+
+  // Catch host page focus on interactive elements during Tab navigation
+  let isKeyboardNav = false;
+  window.addEventListener('keydown', function (e) {
+    if (e.key === 'Tab') isKeyboardNav = true;
+  });
+  window.addEventListener('mousedown', function () {
+    isKeyboardNav = false;
+  });
+
+  document.addEventListener('focusin', function (e) {
+    if (e.target === trigger) return;
+    if (isKeyboardNav) {
+      const desc = getHostElementDescription(e.target);
+      if (desc) speakHost(desc);
+    }
+  });
 })();
