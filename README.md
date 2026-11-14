@@ -130,6 +130,15 @@ open pages/homepage-v1-paced.html
 | Job alerts | Cron worker every 6 h; Telegram + SMS delivery; `/job-alert` subscription |
 | Interview accommodation | `/accommodate` endpoint; ConversationHandler in Telegram; email/Telegram notification |
 
+### 🌟 Bonus Features ("Earns Extra" & "Built for Ethiopia")
+
+| Bonus Feature | Specification | Implementation & Route |
+|---|---|---|
+| **Plain-Language "Simple Mode"** | Slide 11: *"A plain-language 'simple mode'"* | Header toggle `[Aa]`; simplifies responses into short sentences, basic vocabulary, and zero jargon for cognitive accessibility. |
+| **Anonymous Teacher Insights** | Slide 11: *"A teacher view of the most asked questions, without names"* | Accessible portal at `http://localhost:8000/teacher-ui/` + `GET /teacher/analytics`; aggregated topics & frequencies with 100% zero PII. |
+| **Ethiopian Calendar (Ge'ez)** | Slide 12: *"Built for Ethiopia: the Ethiopian calendar"* | Native JDN Gregorian $\leftrightarrow$ Ethiopian conversion (`ህዳር 5 ቀን 2019 ዓ.ም.`); stamped on chat messages and `/accommodate` booking confirmations. |
+| **Double-Space Live Help** | Rapid accessibility shortcut | Double-tap <kbd>Space</kbd> anywhere on page or widget to instantly pop up the Live Help Desk screen share modal. |
+
 ### ✅ Integration
 
 | Level | Method |
