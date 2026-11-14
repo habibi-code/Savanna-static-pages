@@ -223,6 +223,8 @@
   const escalModal    = document.getElementById('escalation-modal');
   const modalConfirm  = document.getElementById('modal-confirm-btn');
   const modalCancel   = document.getElementById('modal-cancel-btn');
+  const modalTitle    = document.getElementById('modal-title');
+  const modalDesc     = document.querySelector('#escalation-modal p');
 
   /* ── i18n strings ────────────────────────────────────────── */
   const i18n = {
@@ -250,6 +252,11 @@
       stateExpanded:'expanded',
       stateCollapsed:'collapsed',
       stateDisabled:'disabled',
+      modalTitle:   'Share your screen with a human agent?',
+      modalDesc:    'To get personalised help, an operator will view your screen. You will be asked to choose what to share. You can stop at any time.',
+      modalCancel:  'Cancel',
+      modalConfirm: 'Share & Connect',
+      escalateAlert:'Live help desk opened. Share your screen with a human agent?',
     },
     am: {
       title:        'ሳቫና ረዳት',
@@ -275,6 +282,11 @@
       stateExpanded:'ተከፍቷል',
       stateCollapsed:'ተዘግቷል',
       stateDisabled:'ተሰናክሏል',
+      modalTitle:   'ከሰው ወኪል ጋር ስክሪንዎን ያጋሩ?',
+      modalDesc:    'ለግል እርዳታ ለማግኘት፣ አንድ ኦፕሬተር ስክሪንዎን ይመለከታል። ምን ማጋራት እንደሚፈልጉ ይጠየቃሉ። በማንኛውም ጊዜ ማቆም ይችላሉ።',
+      modalCancel:  'ይቅር',
+      modalConfirm: 'አጋራና ተገናኝ',
+      escalateAlert:'የቀጥታ እርዳታ ጠረጴዛ ተከፍቷል። ከሰው ወኪል ጋር ስክሪንዎን ያጋሩ?',
     }
   };
 
@@ -298,6 +310,10 @@
     escalateBtn.setAttribute('aria-label', t.escalate + ' — escalate to a human agent');
     closeBtn.setAttribute('aria-label',    t.closeLabel);
     minimizeBtn.setAttribute('aria-label', t.minimiseLabel);
+    if (modalTitle) modalTitle.textContent = t.modalTitle;
+    if (modalDesc) modalDesc.textContent = t.modalDesc;
+    if (modalCancel) modalCancel.textContent = t.modalCancel;
+    if (modalConfirm) modalConfirm.textContent = t.modalConfirm;
     localStorage.setItem(LANG_KEY, lang);
     if (recognition) recognition.lang = isAmharic ? 'am-ET' : 'en-US';
   }
@@ -389,14 +405,41 @@
     if (desc) speakFocus(desc);
   });
 
-  /* ── Focus management (from parent) ─────────────────────── */
+  /* ── Focus & message management (from parent) ───────────── */
   window.addEventListener('message', function (e) {
-    if (e.data && e.data.type === 'focus') {
+    if (!e.data || typeof e.data !== 'object') return;
+    if (e.data.type === 'focus') {
       chatInput.focus();
       const welcome = isAmharic
         ? 'ሳቫና ረዳት ተከፍቷል። መልዕክትዎን በእንግሊዝኛ ወይም በአማርኛ ይፃፉ።'
         : 'Savanna assistant opened. Type your message in English or Amharic.';
       speakFocus(welcome);
+    } else if (e.data.type === 'open_escalate') {
+      openEscalModal();
+      const msg = isAmharic ? i18n.am.escalateAlert : i18n.en.escalateAlert;
+      speakFocus(msg);
+    }
+  });
+
+  /* ── Double-Space Shortcut for Live Help Desk ───────────── */
+  let lastSpaceTime = 0;
+  window.addEventListener('keydown', function (e) {
+    if (e.key === ' ' || e.code === 'Space') {
+      const isInput = (e.target === chatInput);
+      // If typing inside textarea with content, let normal typing proceed
+      if (isInput && chatInput.value && chatInput.value.trim().length > 0) {
+        return;
+      }
+      const now = Date.now();
+      if (now - lastSpaceTime < 450) {
+        e.preventDefault();
+        lastSpaceTime = 0;
+        openEscalModal();
+        const msg = isAmharic ? i18n.am.escalateAlert : i18n.en.escalateAlert;
+        speakFocus(msg);
+      } else {
+        lastSpaceTime = now;
+      }
     }
   });
 

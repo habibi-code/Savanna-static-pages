@@ -243,4 +243,35 @@
       if (desc) speakHost(desc);
     }
   });
+
+  /* ── 9. Double-Space Shortcut for Live Help Desk ───────────────────────── */
+  let lastSpaceTime = 0;
+  window.addEventListener('keydown', function (e) {
+    if (e.key === ' ' || e.code === 'Space') {
+      const targetTag = (e.target && e.target.tagName) ? e.target.tagName.toUpperCase() : '';
+      const isInput = targetTag === 'INPUT' || targetTag === 'TEXTAREA';
+      // If typing inside an input with text, allow normal typing
+      if (isInput && e.target.value && e.target.value.trim().length > 0) {
+        return;
+      }
+      const now = Date.now();
+      if (now - lastSpaceTime < 450) {
+        e.preventDefault();
+        lastSpaceTime = 0;
+        openWidgetWithEscalation();
+      } else {
+        lastSpaceTime = now;
+      }
+    }
+  });
+
+  function openWidgetWithEscalation() {
+    if (!isOpen) {
+      openWidget();
+    }
+    speakHost('Opening Live Help Desk');
+    setTimeout(function () {
+      iframe.contentWindow && iframe.contentWindow.postMessage({ type: 'open_escalate' }, '*');
+    }, 150);
+  }
 })();
