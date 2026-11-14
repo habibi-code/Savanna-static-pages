@@ -454,3 +454,265 @@
   from { transform: translateY(-100%); }
   to { transform: translateY(0); }
 }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   PHASE 3: MOTOR & MOBILITY ADAPTATIONS (Switch, Voice, Single-Key, Sticky Bar)
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* ── Target Size & Spacing Enlargement (WCAG 2.5.5 / 2.5.8) ─────────────── */
+[data-sa11y-motor="true"] button,
+[data-sa11y-motor="true"] a.btn,
+[data-sa11y-motor="true"] input[type="button"],
+[data-sa11y-motor="true"] input[type="submit"] {
+  min-height: 48px !important;
+  min-width: 48px !important;
+  font-size: 1.05rem !important;
+  padding: 0.65rem 1.25rem !important;
+}
+
+[data-sa11y-motor="true"] :focus-visible {
+  outline: 4px solid var(--sa11y-primary) !important;
+  outline-offset: 3px !important;
+}
+
+/* ── Sticky Action Toolbar ──────────────────────────────────────────────── */
+.sa11y-motor-bar {
+  position: fixed;
+  bottom: 1.25rem;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 2147483630;
+  background: rgba(15, 23, 42, 0.95);
+  color: #ffffff;
+  border: 2px solid var(--sa11y-border);
+  border-radius: 9999px;
+  padding: 0.45rem 0.75rem;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.4);
+  backdrop-filter: blur(10px);
+  display: flex;
+  align-items: center;
+  max-width: calc(100vw - 12rem);
+  overflow-x: auto;
+}
+
+.sa11y-motor-buttons {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  white-space: nowrap;
+}
+
+.sa11y-motor-btn {
+  all: unset;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4rem;
+  background: rgba(255, 255, 255, 0.12);
+  color: #ffffff;
+  font-size: 0.875rem;
+  font-weight: 700;
+  padding: 0.55rem 0.95rem;
+  min-height: 44px;
+  min-width: 44px;
+  border-radius: 9999px;
+  cursor: pointer;
+  transition: background 0.15s, transform 0.15s;
+  user-select: none;
+}
+
+.sa11y-motor-btn:hover {
+  background: rgba(255, 255, 255, 0.22);
+  transform: translateY(-1px);
+}
+
+.sa11y-motor-btn:focus-visible {
+  outline: 3px solid #60a5fa;
+  outline-offset: 2px;
+}
+
+.sa11y-motor-btn.sa11y-btn-accent {
+  background: #16a34a;
+  color: #ffffff;
+}
+
+.sa11y-motor-btn.sa11y-btn-accent:hover {
+  background: #15803d;
+}
+
+.sa11y-motor-btn.sa11y-active-mode {
+  background: #dc2626 !important;
+  color: #ffffff !important;
+  box-shadow: 0 0 12px rgba(220, 38, 38, 0.8);
+  animation: sa11yPulse 1.5s infinite;
+}
+
+@keyframes sa11yPulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.75; }
+}
+
+/* High Contrast Override for Motor Bar */
+[data-sa11y-contrast="high"] .sa11y-motor-bar {
+  background: #000000 !important;
+  border: 3px solid #ffffff !important;
+}
+
+[data-sa11y-contrast="high"] .sa11y-motor-btn {
+  background: #000000 !important;
+  color: #ffffff !important;
+  border: 2px solid #ffffff !important;
+}
+
+[data-sa11y-contrast="high"] .sa11y-motor-btn:focus-visible {
+  outline: 4px solid #facc15 !important;
+}
+
+/* ── Switch-Device Auto-Scan Highlight ──────────────────────────────────── */
+.sa11y-scan-highlight {
+  outline: 4px solid #f59e0b !important;
+  outline-offset: 4px !important;
+  box-shadow: 0 0 16px rgba(245, 158, 11, 0.85) !important;
+  border-radius: 4px;
+  transition: outline 0.12s ease-in-out;
+}
+
+/* ── Floating Status Pills (Scan & Voice) ───────────────────────────────── */
+.sa11y-status-pill {
+  position: fixed;
+  top: 1rem;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 2147483646;
+  padding: 0.6rem 1.25rem;
+  border-radius: 9999px;
+  color: #ffffff;
+  font-weight: 700;
+  font-size: 0.875rem;
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.35);
+  animation: sa11ySlideDown 0.25s ease-out;
+}
+
+.sa11y-scan-active-pill {
+  background: #b45309;
+  border: 2px solid #fcd34d;
+}
+
+.sa11y-voice-active-pill {
+  background: #1e3a8a;
+  border: 2px solid #93c5fd;
+}
+
+.sa11y-pill-mic-pulse {
+  animation: sa11yMicBeat 1s infinite alternate;
+}
+
+@keyframes sa11yMicBeat {
+  from { transform: scale(1); }
+  to { transform: scale(1.35); }
+}
+
+.sa11y-pill-stop-btn {
+  all: unset;
+  background: rgba(255, 255, 255, 0.25);
+  border-radius: 50%;
+  width: 1.5rem;
+  height: 1.5rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  font-size: 0.75rem;
+  margin-left: 0.5rem;
+}
+
+.sa11y-pill-stop-btn:hover {
+  background: rgba(255, 255, 255, 0.45);
+}
+
+/* ── Shortcuts Cheat Sheet Modal ────────────────────────────────────────── */
+.sa11y-shortcuts-modal {
+  max-width: 560px;
+}
+
+.sa11y-close-btn {
+  all: unset;
+  font-size: 1.1rem;
+  padding: 0.3rem 0.6rem;
+  border-radius: 0.375rem;
+  cursor: pointer;
+  color: var(--sa11y-text-muted);
+}
+
+.sa11y-close-btn:hover {
+  color: var(--sa11y-text);
+  background: rgba(0, 0, 0, 0.08);
+}
+
+.sa11y-shortcuts-table-wrap {
+  margin-bottom: 1.25rem;
+  border: 1px solid var(--sa11y-border);
+  border-radius: 0.5rem;
+  overflow: hidden;
+}
+
+.sa11y-shortcuts-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.9rem;
+}
+
+.sa11y-shortcuts-table th {
+  background: var(--sa11y-surface);
+  text-align: left;
+  padding: 0.65rem 0.85rem;
+  border-bottom: 1px solid var(--sa11y-border);
+  font-weight: 700;
+}
+
+.sa11y-shortcuts-table td {
+  padding: 0.65rem 0.85rem;
+  border-bottom: 1px solid var(--sa11y-border);
+}
+
+.sa11y-shortcuts-table tr:last-child td {
+  border-bottom: none;
+}
+
+.sa11y-shortcuts-table kbd {
+  background: var(--sa11y-surface);
+  color: var(--sa11y-text);
+  border: 1px solid var(--sa11y-border);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
+  padding: 0.2rem 0.45rem;
+  border-radius: 0.25rem;
+  font-family: monospace;
+  font-weight: 700;
+  font-size: 0.85rem;
+}
+
+.sa11y-voice-commands-card {
+  background: var(--sa11y-surface);
+  border: 1px solid var(--sa11y-border);
+  border-radius: 0.5rem;
+  padding: 0.85rem;
+}
+
+.sa11y-voice-commands-card h4 {
+  font-size: 0.95rem;
+  margin: 0 0 0.4rem 0;
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.sa11y-code-pill {
+  font-family: monospace;
+  font-size: 0.8rem;
+  color: var(--sa11y-text-muted);
+  margin: 0;
+  word-break: break-word;
+}

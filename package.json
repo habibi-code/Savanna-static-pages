@@ -3,7 +3,7 @@
   "version": "1.0.0",
   "description": "Savanna Multilingual Assistant & Live Help Widget - Track 3",
   "scripts": {
-    "test": "node widget/widget-a11y.test.js",
+    "test": "node widget/widget-a11y.test.js && node widget/a11y-engine.test.js",
     "axe": "node widget/widget-a11y.test.js"
   },
   "devDependencies": {
