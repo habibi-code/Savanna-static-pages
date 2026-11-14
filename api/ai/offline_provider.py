@@ -92,13 +92,20 @@ class OfflineProvider(AIProvider):
         language: str,
         context_chunks: list[dict],
         history: list[ChatMessage],
+        simple_mode: bool = False,
     ) -> tuple[str, list[Citation]]:
         note = _OFFLINE_NOTE_AM if language == "am" else _OFFLINE_NOTE_EN
+        mode_prefix = ("💡 [ቀላል ሁነታ — አጭር ማብራሪያ]\n\n" if language == "am" else "💡 [Simple Mode — Plain Language]\n\n") if simple_mode else ""
 
         # If RAG context is provided, return the top chunk directly
         if context_chunks:
             top = context_chunks[0]
-            text = f"{note}\n\n{top['text']}"
+            raw_text = top['text']
+            if simple_mode:
+                # Keep first 2 sentences for simple mode brevity
+                sentences = raw_text.split(". ")
+                raw_text = ". ".join(sentences[:2]) + ("." if not sentences[0].endswith(".") else "")
+            text = f"{mode_prefix}{note}\n\n{raw_text}"
             citation = Citation(
                 id=top["id"],
                 source=top["source"],

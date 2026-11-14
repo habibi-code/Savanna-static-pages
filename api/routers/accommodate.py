@@ -20,6 +20,7 @@ from fastapi import APIRouter
 
 from config import get_settings
 from models import AccommodationRequest, AccommodationResponse
+from utils.ethiopian_calendar import gregorian_to_ethiopian
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -124,5 +125,12 @@ async def accommodate(body: AccommodationRequest) -> AccommodationResponse:
 
     message = _CONFIRM_MSG[lang].format(name=body.name, ref=ref, email=body.email)
     next_steps = _NEXT_STEPS[lang]
+    eth_date = gregorian_to_ethiopian(datetime.now())
+    eth_str = eth_date.format_am() if lang == "am" else eth_date.format_en()
 
-    return AccommodationResponse(reference=ref, message=message, next_steps=next_steps)
+    return AccommodationResponse(
+        reference=ref,
+        message=message,
+        next_steps=next_steps,
+        ethiopian_date=eth_str,
+    )

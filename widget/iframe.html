@@ -62,6 +62,14 @@
       </svg>
     </button>
 
+    <!-- Simple Mode (Plain language for cognitive accessibility) -->
+    <button type="button" id="simple-mode-btn" class="icon-btn"
+            aria-pressed="false"
+            aria-label="Simple mode off. Click to enable plain language."
+            title="Simple mode / ቀላል ሁነታ (Plain language explanations)">
+      <span style="font-weight: 800; font-size: 0.85rem; letter-spacing: -0.05em;" aria-hidden="true">Aa</span>
+    </button>
+
     <!-- Minimise -->
     <button type="button" id="minimize-btn" class="icon-btn"
             aria-label="Minimise assistant">
@@ -198,8 +206,10 @@
   /* ── Language state ──────────────────────────────────────── */
   const LANG_KEY    = 'savanna_lang';
   const VOICE_GUIDE_KEY = 'savanna_voice_guide';
+  const SIMPLE_MODE_KEY = 'savanna_simple_mode';
   let   isAmharic   = localStorage.getItem(LANG_KEY) === 'am';
   let   voiceGuideEnabled = localStorage.getItem(VOICE_GUIDE_KEY) !== 'false';
+  let   simpleModeEnabled = localStorage.getItem(SIMPLE_MODE_KEY) === 'true';
   let   isListening = false;
   let   recognition = null;
 
@@ -208,6 +218,7 @@
   const widgetTitle   = document.getElementById('widget-title');
   const langToggleBtn = document.getElementById('lang-toggle-btn');
   const voiceGuideBtn = document.getElementById('voice-guide-btn');
+  const simpleModeBtn = document.getElementById('simple-mode-btn');
   const closeBtn      = document.getElementById('close-btn');
   const minimizeBtn   = document.getElementById('minimize-btn');
   const messageList   = document.getElementById('message-list');
@@ -244,6 +255,10 @@
       voiceGuideOff:'Voice guidance disabled. Click to enable.',
       voiceGuideActive: 'Voice guidance enabled',
       voiceGuideInactive: 'Voice guidance disabled',
+      simpleModeOn: 'Simple mode on. Click to disable plain language.',
+      simpleModeOff:'Simple mode off. Click to enable plain language.',
+      simpleModeActive: 'Simple mode enabled. Answers will use plain language.',
+      simpleModeInactive: 'Simple mode disabled.',
       roleButton:   'button',
       roleLink:     'link',
       roleTextEntry:'text entry',
@@ -274,6 +289,10 @@
       voiceGuideOff:'የድምፅ መመሪያ ጠፍቷል። ለማብራት ይጫኑ።',
       voiceGuideActive: 'የድምፅ መመሪያ ነቅቷል',
       voiceGuideInactive: 'የድምፅ መመሪያ ጠፍቷል',
+      simpleModeOn: 'ቀላል ሁነታ ነቅቷል። ለማጥፋት ይጫኑ።',
+      simpleModeOff:'ቀላል ሁነታ ጠፍቷል። ለማብራት ይጫኑ።',
+      simpleModeActive: 'ቀላል ሁነታ ነቅቷል። ማብራሪያዎች በቀላል ቃላት ይሆናሉ።',
+      simpleModeInactive: 'ቀላል ሁነታ ጠፍቷል።',
       roleButton:   'አዝራር',
       roleLink:     'አገናኝ',
       roleTextEntry:'የፅሑፍ ማስገቢያ',
@@ -302,6 +321,10 @@
     voiceGuideBtn.setAttribute('aria-label', voiceGuideEnabled ? t.voiceGuideOn : t.voiceGuideOff);
     voiceGuideBtn.setAttribute('aria-pressed', voiceGuideEnabled ? 'true' : 'false');
     voiceGuideBtn.style.opacity = voiceGuideEnabled ? '1' : '0.6';
+    simpleModeBtn.setAttribute('aria-label', simpleModeEnabled ? t.simpleModeOn : t.simpleModeOff);
+    simpleModeBtn.setAttribute('aria-pressed', simpleModeEnabled ? 'true' : 'false');
+    simpleModeBtn.style.background = simpleModeEnabled ? 'rgba(255,255,255,0.3)' : '';
+    simpleModeBtn.style.opacity = simpleModeEnabled ? '1' : '0.6';
     inputLabel.textContent    = t.inputPlaceholder;
     sendBtnLabel.textContent  = t.send;
     sendBtn.setAttribute('aria-label', t.send + ' message');
@@ -330,6 +353,24 @@
   /* ── Voice guidance toggle ───────────────────────────────── */
   voiceGuideBtn.addEventListener('click', function () {
     voiceGuideEnabled = !voiceGuideEnabled;
+    localStorage.setItem(VOICE_GUIDE_KEY, voiceGuideEnabled ? 'true' : 'false');
+    applyLanguage();
+    const msg = voiceGuideEnabled
+      ? (isAmharic ? i18n.am.voiceGuideActive : i18n.en.voiceGuideActive)
+      : (isAmharic ? i18n.am.voiceGuideInactive : i18n.en.voiceGuideInactive);
+    speakFocus(msg);
+  });
+
+  /* ── Simple Mode (plain language) toggle ─────────────────── */
+  simpleModeBtn.addEventListener('click', function () {
+    simpleModeEnabled = !simpleModeEnabled;
+    localStorage.setItem(SIMPLE_MODE_KEY, simpleModeEnabled ? 'true' : 'false');
+    applyLanguage();
+    const msg = simpleModeEnabled
+      ? (isAmharic ? i18n.am.simpleModeActive : i18n.en.simpleModeActive)
+      : (isAmharic ? i18n.am.simpleModeInactive : i18n.en.simpleModeInactive);
+    speakFocus(msg);
+  });
     localStorage.setItem(VOICE_GUIDE_KEY, voiceGuideEnabled ? 'true' : 'false');
     applyLanguage();
     const msg = voiceGuideEnabled
@@ -477,7 +518,7 @@
     return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
   }
 
-  function appendMessage(role, content, citations) {
+  function appendMessage(role, content, citations, ethDate) {
     const li = document.createElement('li');
     li.className = 'message-item ' + role;
 
@@ -488,7 +529,8 @@
     const ts = document.createElement('time');
     ts.className = 'message-timestamp sr-only-ts';
     ts.setAttribute('datetime', new Date().toISOString());
-    ts.textContent = (role === 'user' ? 'You, ' : 'Assistant, ') + formatTime(new Date());
+    const dateText = (role === 'user' ? 'You, ' : 'Assistant, ') + formatTime(new Date()) + (ethDate ? ' • ' + ethDate : '');
+    ts.textContent = dateText;
 
     li.appendChild(bubble);
     li.appendChild(ts);
@@ -577,10 +619,11 @@
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          message:    text,
-          language:   isAmharic ? 'am' : 'en',
-          session_id: sessionId,
-          history:    history.slice(-10)
+          message:     text,
+          language:    isAmharic ? 'am' : 'en',
+          session_id:  sessionId,
+          history:     history.slice(-10),
+          simple_mode: simpleModeEnabled
         })
       });
 
@@ -596,8 +639,9 @@
       const data = await res.json();
       const reply = (data.text || data.response || data.message || data.answer || '').toString();
       const cites = Array.isArray(data.citations) ? data.citations : [];
+      const ethDate = data.ethiopian_date || null;
 
-      appendMessage('assistant', reply, cites);
+      appendMessage('assistant', reply, cites, ethDate);
       history.push({ role: 'assistant', content: reply });
 
       /* TTS */

@@ -1,0 +1,284 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Savanna Instructor Portal — Anonymous Learner Inquiries</title>
+  <style>
+    :root {
+      --bg: #f8fafc;
+      --surface: #ffffff;
+      --primary: #005fcc;
+      --primary-hover: #004494;
+      --text: #0f172a;
+      --text-muted: #475569;
+      --border: #cbd5e1;
+      --success: #166534;
+      --success-bg: #dcfce7;
+      --card-shadow: 0 4px 16px rgba(0, 0, 0, 0.06);
+    }
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --bg: #090d16;
+        --surface: #131b2e;
+        --primary: #3b82f6;
+        --primary-hover: #60a5fa;
+        --text: #f8fafc;
+        --text-muted: #94a3b8;
+        --border: #334155;
+        --success: #86efac;
+        --success-bg: #14532d;
+        --card-shadow: 0 4px 20px rgba(0, 0, 0, 0.35);
+      }
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.6;
+      padding: 2rem 1rem;
+    }
+    .skip-link {
+      position: absolute;
+      top: -40px;
+      left: 0;
+      background: var(--primary);
+      color: #fff;
+      padding: 8px;
+      z-index: 100;
+    }
+    .skip-link:focus { top: 0; }
+    .container { max-width: 1040px; margin: 0 auto; }
+    header {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: space-between;
+      align-items: center;
+      gap: 1rem;
+      margin-bottom: 2rem;
+      border-bottom: 2px solid var(--border);
+      padding-bottom: 1.25rem;
+    }
+    h1 { font-size: 1.75rem; font-weight: 800; }
+    .subtitle { color: var(--text-muted); font-size: 0.95rem; }
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.4rem;
+      background: var(--success-bg);
+      color: var(--success);
+      padding: 0.35rem 0.75rem;
+      border-radius: 9999px;
+      font-size: 0.85rem;
+      font-weight: 600;
+    }
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.5rem;
+      background: var(--primary);
+      color: #fff;
+      padding: 0.6rem 1.2rem;
+      border-radius: 0.5rem;
+      text-decoration: none;
+      font-weight: 600;
+      cursor: pointer;
+      border: none;
+      transition: background 0.2s;
+    }
+    .btn:hover { background: var(--primary-hover); }
+    .btn:focus-visible { outline: 3px solid var(--primary); outline-offset: 3px; }
+    
+    .stats-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+      gap: 1.25rem;
+      margin-bottom: 2rem;
+    }
+    .stat-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 0.75rem;
+      padding: 1.5rem;
+      box-shadow: var(--card-shadow);
+    }
+    .stat-card h3 { font-size: 0.85rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.05em; }
+    .stat-card .val { font-size: 2rem; font-weight: 800; margin-top: 0.5rem; }
+
+    .card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 0.75rem;
+      padding: 1.5rem;
+      margin-bottom: 2rem;
+      box-shadow: var(--card-shadow);
+    }
+    .card h2 { font-size: 1.25rem; margin-bottom: 1.25rem; display: flex; align-items: center; justify-content: space-between; }
+    
+    .topic-bar-row { margin-bottom: 1rem; }
+    .topic-bar-header { display: flex; justify-content: space-between; margin-bottom: 0.25rem; font-size: 0.9rem; font-weight: 600; }
+    .progress-track { background: var(--border); height: 10px; border-radius: 5px; overflow: hidden; }
+    .progress-fill { background: var(--primary); height: 100%; border-radius: 5px; }
+
+    table { width: 100%; border-collapse: collapse; margin-top: 0.5rem; }
+    th, td { text-align: left; padding: 0.75rem 0.5rem; border-bottom: 1px solid var(--border); font-size: 0.95rem; }
+    th { color: var(--text-muted); font-size: 0.8rem; text-transform: uppercase; }
+    tr:hover td { background: rgba(0,0,0,0.02); }
+    .freq-badge { background: var(--primary); color: #fff; padding: 2px 8px; border-radius: 12px; font-weight: 700; font-size: 0.85rem; }
+    .lang-pill { background: var(--border); padding: 2px 6px; border-radius: 4px; font-size: 0.75rem; font-weight: 700; text-transform: uppercase; }
+  </style>
+</head>
+<body>
+  <a href="#main" class="skip-link">Skip to main content</a>
+
+  <div class="container">
+    <header role="banner">
+      <div>
+        <h1>Savanna Instructor Insights</h1>
+        <p class="subtitle">Most Asked Questions &amp; Student Inquiries (Privacy-Preserving / Without Names)</p>
+      </div>
+      <div style="display: flex; gap: 0.75rem; align-items: center;">
+        <span class="badge" aria-label="100 percent anonymous data collection">
+          ✓ Zero PII / Anonymous
+        </span>
+        <a href="/teacher/export" class="btn" download="anonymous_questions.csv" aria-label="Download anonymous questions CSV report">
+          Download CSV
+        </a>
+      </div>
+    </header>
+
+    <main id="main">
+      <!-- ── Metric Cards ── -->
+      <section class="stats-grid" aria-label="Overview Statistics">
+        <div class="stat-card">
+          <h3>Total Learner Questions</h3>
+          <div class="val" id="stat-total">--</div>
+        </div>
+        <div class="stat-card">
+          <h3>Top Confusion Topic</h3>
+          <div class="val" id="stat-top-topic" style="font-size: 1.25rem; margin-top: 1rem;">--</div>
+        </div>
+        <div class="stat-card">
+          <h3>Language Ingestion</h3>
+          <div class="val" id="stat-lang" style="font-size: 1.15rem; margin-top: 1rem;">--</div>
+        </div>
+        <div class="stat-card">
+          <h3>Calendar Standard</h3>
+          <div class="val" style="font-size: 1.1rem; margin-top: 1rem;">Ethiopian (ዓ.ም.) &amp; Gregorian</div>
+        </div>
+      </section>
+
+      <!-- ── Topic Distribution ── -->
+      <section class="card" aria-label="Topic Distribution">
+        <h2>Inquiry Topics Breakdown</h2>
+        <div id="topics-container">Loading topic metrics…</div>
+      </section>
+
+      <!-- ── Most Asked Questions ── -->
+      <section class="card" aria-label="Most Asked Questions Table">
+        <h2>Most Frequent Questions (Aggregated)</h2>
+        <table>
+          <thead>
+            <tr>
+              <th scope="col">Frequency</th>
+              <th scope="col">Topic</th>
+              <th scope="col">Lang</th>
+              <th scope="col">Anonymous Question</th>
+            </tr>
+          </thead>
+          <tbody id="frequent-tbody">
+            <tr><td colspan="4">Loading frequent questions…</td></tr>
+          </tbody>
+        </table>
+      </section>
+
+      <!-- ── Recent Questions with Ethiopian Calendar ── -->
+      <section class="card" aria-label="Recent Inquiries">
+        <h2>Recent Questions (with Ethiopian Calendar)</h2>
+        <table>
+          <thead>
+            <tr>
+              <th scope="col">Date (Ethiopian / Ge'ez)</th>
+              <th scope="col">Topic</th>
+              <th scope="col">Question</th>
+            </tr>
+          </thead>
+          <tbody id="recent-tbody">
+            <tr><td colspan="3">Loading recent inquiries…</td></tr>
+          </tbody>
+        </table>
+      </section>
+    </main>
+  </div>
+
+  <script>
+    async function loadAnalytics() {
+      try {
+        const res = await fetch('/teacher/analytics');
+        if (!res.ok) throw new Error('API ' + res.status);
+        const data = await res.json();
+
+        // 1. Metrics
+        document.getElementById('stat-total').textContent = data.total_questions;
+        document.getElementById('stat-top-topic').textContent = (data.topics && data.topics[0]) ? data.topics[0].topic : 'N/A';
+        const enCount = (data.languages_breakdown && data.languages_breakdown.en) || 0;
+        const amCount = (data.languages_breakdown && data.languages_breakdown.am) || 0;
+        document.getElementById('stat-lang').textContent = `${enCount} EN / ${amCount} AM`;
+
+        // 2. Topic Progress Bars
+        const topicsDiv = document.getElementById('topics-container');
+        topicsDiv.innerHTML = '';
+        (data.topics || []).forEach(t => {
+          const row = document.createElement('div');
+          row.className = 'topic-bar-row';
+          row.innerHTML = `
+            <div class="topic-bar-header">
+              <span>${t.topic}</span>
+              <span>${t.count} questions (${t.percentage}%)</span>
+            </div>
+            <div class="progress-track">
+              <div class="progress-fill" style="width: ${t.percentage}%;"></div>
+            </div>
+          `;
+          topicsDiv.appendChild(row);
+        });
+
+        // 3. Most Asked
+        const freqTbody = document.getElementById('frequent-tbody');
+        freqTbody.innerHTML = '';
+        (data.most_asked || []).forEach(q => {
+          const tr = document.createElement('tr');
+          tr.innerHTML = `
+            <td><span class="freq-badge">${q.count}×</span></td>
+            <td><strong>${q.topic}</strong></td>
+            <td><span class="lang-pill">${q.language}</span></td>
+            <td>${q.question}</td>
+          `;
+          freqTbody.appendChild(tr);
+        });
+
+        // 4. Recent Questions
+        const recentTbody = document.getElementById('recent-tbody');
+        recentTbody.innerHTML = '';
+        (data.recent || []).forEach(r => {
+          const tr = document.createElement('tr');
+          tr.innerHTML = `
+            <td style="white-space: nowrap; font-weight: 600;">${r.ethiopian_date}</td>
+            <td>${r.topic}</td>
+            <td>${r.question}</td>
+          `;
+          recentTbody.appendChild(tr);
+        });
+
+      } catch (err) {
+        console.error('Failed to load teacher analytics:', err);
+      }
+    }
+
+    loadAnalytics();
+    // Auto-refresh every 10 seconds for real-time demo
+    setInterval(loadAnalytics, 10000);
+  </script>
+</body>
+</html>

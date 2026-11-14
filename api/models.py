@@ -20,6 +20,7 @@ class ChatRequest(BaseModel):
     history: list[ChatMessage] = Field(default_factory=list, max_length=20)
     session_id: Optional[str] = None
     user_id: Optional[str] = None
+    simple_mode: bool = Field(default=False, description="Plain-language simple mode for cognitive accessibility")
 
 
 class Citation(BaseModel):
@@ -36,6 +37,7 @@ class ChatResponse(BaseModel):
     citations: list[Citation] = []
     provider: str
     timestamp: datetime = Field(default_factory=datetime.utcnow)
+    ethiopian_date: Optional[str] = None
 
 
 # ─── Escalation ──────────────────────────────────────────────────────────────
@@ -101,6 +103,7 @@ class AccommodationResponse(BaseModel):
     reference: str
     message: str
     next_steps: list[str] = []
+    ethiopian_date: Optional[str] = None
 
 
 # ─── SMS webhook ─────────────────────────────────────────────────────────────

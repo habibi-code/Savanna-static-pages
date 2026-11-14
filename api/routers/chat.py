@@ -23,6 +23,8 @@ from langdetect import detect, LangDetectException
 
 from config import get_settings
 from models import ChatRequest, ChatResponse, ChatMessage, Citation
+from routers.teacher import record_question
+from utils.ethiopian_calendar import gregorian_to_ethiopian
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -67,6 +69,13 @@ async def chat(body: ChatRequest) -> ChatResponse:
     if not language or language not in ("en", "am"):
         language = _detect_language(body.message)
 
+    # Record question anonymously for instructor analytics (NO user info)
+    record_question(body.message, language)
+
+    # Ethiopian calendar calculation for response timestamp
+    eth_date = gregorian_to_ethiopian(datetime.now())
+    eth_str = eth_date.format_am() if language == "am" else eth_date.format_en()
+
     # 2. RAG retrieval
     try:
         from rag.retriever import retrieve
@@ -101,6 +110,7 @@ async def chat(body: ChatRequest) -> ChatResponse:
                 language,
                 chunks,
                 body.history,
+                simple_mode=body.simple_mode,
             ),
             timeout=30.0,
         )
@@ -128,6 +138,7 @@ async def chat(body: ChatRequest) -> ChatResponse:
         citations=citations,
         provider=provider_name,
         timestamp=datetime.now(timezone.utc),
+        ethiopian_date=eth_str,
     )
 
     # 5. Persist to Redis

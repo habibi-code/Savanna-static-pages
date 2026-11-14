@@ -8,7 +8,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from config import get_settings
-from routers import chat, escalate, jobs, accommodate, lti, sms as sms_router
+from routers import chat, escalate, jobs, accommodate, lti, sms as sms_router, teacher
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -62,6 +62,7 @@ def create_app() -> FastAPI:
     app.include_router(accommodate.router, prefix="/accommodate", tags=["Accommodation"])
     app.include_router(lti.router,         prefix="/lti",         tags=["LTI 1.3"])
     app.include_router(sms_router.router,  prefix="/webhook",     tags=["SMS Webhook"])
+    app.include_router(teacher.router,     prefix="/teacher",     tags=["Teacher Analytics"])
 
     # ── Health ────────────────────────────────────────────────────────────────
     from models import HealthResponse
@@ -89,6 +90,12 @@ def create_app() -> FastAPI:
         operator_dir = os.path.join(base_dir, "..", "operator")
     if os.path.isdir(operator_dir):
         app.mount("/operator", StaticFiles(directory=operator_dir, html=True), name="operator")
+
+    teacher_dir = os.path.join(base_dir, "teacher")
+    if not os.path.isdir(teacher_dir):
+        teacher_dir = os.path.join(base_dir, "..", "teacher")
+    if os.path.isdir(teacher_dir):
+        app.mount("/teacher-ui", StaticFiles(directory=teacher_dir, html=True), name="teacher-ui")
 
     return app
 

@@ -81,8 +81,14 @@ class OpenAIProvider(AIProvider):
         language: str,
         context_chunks: list[dict],
         history: list[ChatMessage],
+        simple_mode: bool = False,
     ) -> tuple[str, list[Citation]]:
         system_prompt = _SYSTEM_PROMPT_AM if language == "am" else _SYSTEM_PROMPT_EN
+        if simple_mode:
+            if language == "am":
+                system_prompt += " [ቀላል ሁነታ] እባክዎ በጣም ቀላል እና አጫጭር ቃላትን ይጠቀሙ። ዓረፍተ ነገሮችን አጭር ያድርጉ።"
+            else:
+                system_prompt += " [SIMPLE MODE] Use very plain, simple words. Keep sentences short (under 12 words). Avoid technical jargon."
         context_block = _build_context_block(context_chunks)
 
         messages: list[dict] = [
