@@ -1,0 +1,112 @@
+[
+  {
+    "id": "job-001",
+    "title": "Virtual Assistant — Executive Support",
+    "company": "RemoteWork Africa",
+    "location": "Remote (Africa)",
+    "type": "full-time",
+    "description": "Provide executive-level support including calendar management, email correspondence, travel booking, and report preparation. Strong written English required. Amharic a plus.",
+    "skills": ["Calendar management", "Email", "Microsoft Office", "Communication"],
+    "posted_at": "2026-11-10T08:00:00Z",
+    "url": "https://example.com/jobs/job-001"
+  },
+  {
+    "id": "job-002",
+    "title": "Customer Support Specialist (Bilingual EN/AM)",
+    "company": "EthioTech Solutions",
+    "location": "Addis Ababa / Remote",
+    "type": "full-time",
+    "description": "Handle customer inquiries via chat, email, and phone in both English and Amharic. Resolve issues using the company knowledge base. Training provided.",
+    "skills": ["Customer service", "Amharic", "English", "CRM tools"],
+    "posted_at": "2026-11-11T08:00:00Z",
+    "url": "https://example.com/jobs/job-002"
+  },
+  {
+    "id": "job-003",
+    "title": "Data Entry & Research Virtual Assistant",
+    "company": "Global Outsource Ltd",
+    "location": "Remote",
+    "type": "part-time",
+    "description": "Conduct online research, compile data into spreadsheets, verify records, and produce summary reports. 20 hrs/week. Entry-level welcome.",
+    "skills": ["Google Sheets", "Research", "Attention to detail", "Data entry"],
+    "posted_at": "2026-11-09T08:00:00Z",
+    "url": "https://example.com/jobs/job-003"
+  },
+  {
+    "id": "job-004",
+    "title": "Social Media Manager (Part-time, Remote)",
+    "company": "AfriDigital Agency",
+    "location": "Remote",
+    "type": "part-time",
+    "description": "Create and schedule content for LinkedIn, Instagram, and Facebook. Monitor engagement metrics, write captions, and produce monthly analytics reports.",
+    "skills": ["Social media", "Canva", "Copywriting", "Analytics"],
+    "posted_at": "2026-11-12T08:00:00Z",
+    "url": "https://example.com/jobs/job-004"
+  },
+  {
+    "id": "job-005",
+    "title": "AI-Assisted Content Writer",
+    "company": "ContentHive",
+    "location": "Remote (global)",
+    "type": "contract",
+    "description": "Use AI tools (ChatGPT, Grammarly) to draft and edit blog posts, product descriptions, and educational content. Must be able to review AI output critically.",
+    "skills": ["Writing", "AI tools", "Editing", "SEO basics"],
+    "posted_at": "2026-11-13T08:00:00Z",
+    "url": "https://example.com/jobs/job-005"
+  },
+  {
+    "id": "job-006",
+    "title": "Project Coordinator — EdTech Startup",
+    "company": "LearnBridge",
+    "location": "Remote (Africa preferred)",
+    "type": "full-time",
+    "description": "Coordinate cross-functional teams, track project milestones in Asana, prepare status reports, and facilitate weekly standups. 1-year experience preferred.",
+    "skills": ["Project management", "Asana", "Communication", "Leadership"],
+    "posted_at": "2026-11-08T08:00:00Z",
+    "url": "https://example.com/jobs/job-006"
+  },
+  {
+    "id": "job-007",
+    "title": "Bookkeeping Virtual Assistant",
+    "company": "SME Finance Hub",
+    "location": "Remote",
+    "type": "part-time",
+    "description": "Record financial transactions, reconcile accounts, generate invoices, and prepare basic P&L statements using QuickBooks. Accounting background preferred.",
+    "skills": ["QuickBooks", "Bookkeeping", "Excel", "Invoicing"],
+    "posted_at": "2026-11-07T08:00:00Z",
+    "url": "https://example.com/jobs/job-007"
+  },
+  {
+    "id": "job-008",
+    "title": "E-commerce Operations Assistant",
+    "company": "JumiaGo Partners",
+    "location": "Remote (East Africa)",
+    "type": "full-time",
+    "description": "List products, manage inventory data, handle order fulfilment inquiries, write product descriptions, and liaise with suppliers.",
+    "skills": ["E-commerce", "Product listing", "Inventory", "Customer service"],
+    "posted_at": "2026-11-11T08:00:00Z",
+    "url": "https://example.com/jobs/job-008"
+  },
+  {
+    "id": "job-009",
+    "title": "Transcription & Translation Specialist (EN ↔ AM)",
+    "company": "LinguaLink Africa",
+    "location": "Remote",
+    "type": "contract",
+    "description": "Transcribe audio recordings and translate documents between English and Amharic. Medical and legal glossaries provided. Per-word rate.",
+    "skills": ["Amharic", "English", "Transcription", "Translation"],
+    "posted_at": "2026-11-10T08:00:00Z",
+    "url": "https://example.com/jobs/job-009"
+  },
+  {
+    "id": "job-010",
+    "title": "HR & Recruitment Coordinator (Remote)",
+    "company": "TalentFirst EA",
+    "location": "Remote",
+    "type": "full-time",
+    "description": "Post job ads, screen CVs, schedule interviews, maintain applicant tracking system, and draft offer letters. HRIS experience a plus.",
+    "skills": ["HR", "Recruitment", "ATS", "Communication"],
+    "posted_at": "2026-11-13T08:00:00Z",
+    "url": "https://example.com/jobs/job-010"
+  }
+]

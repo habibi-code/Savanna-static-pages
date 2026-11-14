@@ -1,0 +1,14 @@
+{
+  "name": "savanna-multilingual-assistant",
+  "version": "1.0.0",
+  "description": "Savanna Multilingual Assistant & Live Help Widget - Track 3",
+  "scripts": {
+    "test": "node widget/widget-a11y.test.js",
+    "axe": "node widget/widget-a11y.test.js"
+  },
+  "devDependencies": {
+    "@axe-core/cli": "^4.9.0",
+    "axe-core": "^4.9.0",
+    "jsdom": "^24.0.0"
+  }
+}

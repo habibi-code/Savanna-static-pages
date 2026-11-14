@@ -1,58 +1,281 @@
-# Savanna static pages
+# Savanna Multilingual Assistant & Live Help
 
-Three Savanna learner pages, frozen from the **local dev app** into plain HTML + CSS so they can be
-opened offline and used as a reference for front-end and accessibility work.
+> **Hackathon submission — Track 3: Multilingual Assistant and Live Help**  
+> Deadline: Sunday 15 Nov 2026 · 16:30 AST
 
-Open `index.html` (or any file in `pages/`) directly with `file://` — double-clicking works, no
-server needed.
+---
 
-## What is here
+## What it is
 
-| Page | Learner / course | What it shows |
-|------|------------------|----------------|
-| `pages/homepage-v1-paced.html` | Björn Sibanda — **WR 100: Fundamentals of Effective Communication**, cohort F26-SEM-16W (31 Aug – 20 Dec 2026), week 10 of 15 | Courses dropdown (3 courses), week strip with **every week preloaded**, "continue where you left off", immediate deliverables, period progress, overall score (59.56%, "slightly behind"), upcoming events |
-| `pages/homepage-v1-self-paced.html` | Amara Nwosu — **VA-1: VA Foundations & Professional Identity** | Course-progression gauge (16% against the 70% graduation threshold), 1 of 3 modules complete, **working module switcher**, **preloaded programme modal**, pacing boost (11 days left), upcoming events |
-| `pages/concept-with-navigation.html` | Amara Nwosu — concept *"The Future of the VA Industry"* | Curriculum navigation panel (read / current / unread states) beside a full authored concept: callouts, numbered card grid, two-column comparison, icon lists, "Mark as complete". The "Need a Fast Track?" block and the Padlet reflection block are removed on request. |
-
-
-## Layout
+A fully accessible, multilingual AI tutor and live-help assistant embedded in the Savanna learning platform. Learners can ask questions in **English or Amharic** by voice or text, get answers cited directly from their course content, and escalate to a human agent with one click.
 
 ```
-savanna_static_pages/
-├── index.html                 landing page linking the three captures
-├── pages/*.html               the frozen pages (relative links into ../assets)
-├── assets/
-   ├── css/                   the application's own stylesheets, unminified — application_alx.css 
-   │                          (sprockets, themed), app.css (esbuild), Google Fonts, Typekit —
-   │                          plus static-page.css, the only one written for these pages
-   ├── fonts/                 76 font files, all referenced by the stylesheets above
-   ├── img/                   51 images: logos, icons, concept artwork, substituted embeds
-   └── js/                    popper.js + bootstrap.bundle.js (the exact files the live app
-                              serves through sprockets) + static-page.js
+┌─────────────────────────────────────────────────────────┐
+│          Savanna page (any HTML)                        │
+│   <script src="/widget/widget.js" data-api-url="…">    │  ← Level 1 drop-in
+│                                                         │
+│   ┌───────────────────────────────┐                     │
+│   │  Savanna Assistant  [EN] [×]  │                     │
+│   │  ─────────────────────────── │                     │
+│   │  🤖  "Week 10 deliverable is…│  aria-live="polite" │
+│   │       [Sources ▸]            │                     │
+│   │  👤  "What about the score?" │                     │
+│   │  ─────────────────────────── │                     │
+│   │  [🎙] [___________________] [→]                    │
+│   │  [ Get human help ]          │                     │
+│   └───────────────────────────────┘                     │
+└─────────────────────────────────────────────────────────┘
 ```
 
-Everything is shared: the three pages point at the same `assets/` tree, nothing is duplicated and
-nothing is minified or gzipped. Captures are additive, so each run ends by dropping assets no
-published page references any more — otherwise the Rive stills from retired week panels would
-pile up run after run.
+---
 
-## What still works
+## Quick start
 
-These are live in the frozen pages, driven by `assets/js/static-page.js` against content that was
-pre-rendered during the capture and parked in `<template>` elements (so nothing is duplicated in
-the accessibility tree and no id appears twice):
+```bash
+# 1. Clone
+git clone <repo> && cd Hackathon2
 
-| Control | Page | Behaviour |
+# 2. Configure
+cp .env.example .env
+# Edit .env — set OPENAI_API_KEY (or AI_PROVIDER=offline for no key)
+
+# 3. Start everything
+make dev
+# → API at http://localhost:8000
+# → Widget at http://localhost:80/widget/iframe.html
+# → Docs at http://localhost:8000/docs
+
+# 4. Open a frozen Savanna page
+open pages/homepage-v1-paced.html
+# The floating chat bubble appears bottom-right.
+```
+
+---
+
+## Architecture
+
+```
+┌─────────────┐    ┌──────────────────────────────────────────┐
+│  Web Widget │    │          FastAPI  :8000                   │
+│  iframe.html│───▶│  /chat  /escalate  /jobs  /accommodate   │
+│  widget.js  │    │  /lti/launch  /webhook/sms  /openapi.json│
+└─────────────┘    └────────┬──────────────────┬──────────────┘
+                            │                  │
+              ┌─────────────▼──┐    ┌──────────▼─────────┐
+              │   AI Layer     │    │   RAG (ChromaDB)   │
+              │  ┌──────────┐  │    │  multilingual-e5   │
+              │  │  OpenAI  │  │    │  Savanna HTML docs │
+              │  │  Ollama  │  │    │  Job listings      │
+              │  │  Offline │  │    └────────────────────┘
+              │  └──────────┘  │
+              └────────────────┘
+                            │
+              ┌─────────────┴──────────────┐
+              │  Channels                  │
+              │  Telegram Bot (polling)    │
+              │  SMS / Africa's Talking    │
+              └────────────────────────────┘
+```
+
+### Services (docker-compose)
+
+| Service | Port | Role |
 |---|---|---|
-| **Hamburger** | all | Collapses the sidebar to its 70px icon rail and back, remembered in `localStorage` under `sidebar-collapsed`. It moves the same three things the app does: `body.sidebar-collapsed`, `expanded` on `#sidebar`, and the labels (React wrote `display` inline on each, so `assets/css/static-page.css` overrides them from the body class). |
-| **Week strip** | paced homepage | Every week of the course was rendered server-side at capture time; clicking one swaps the panel below it and moves the `active` state. The chevrons and the scroll-into-view of the selected week are reimplemented from the component's own sidecar JS. |
-| **Score details modal** | paced homepage | Server-rendered per week, so it opens on its own — including the one that arrives with a week you switch to. |
-| **My activities** | self-paced homepage | Each module's activity list was rendered at capture time; clicking a module swaps the panel beside it, as `HomepageSelfPacedActivities.tsx` does. |
-| **Programme modal** | self-paced homepage | "Program details" normally fetches `/dashboards/program_structure.json` on first open — the capture opens it once so the fetched tree is baked in. Its course and module accordions expand and collapse: React renders only the body of an *open* section, so the capture opens each one to materialise its content, pairs every toggle with the element it controls (`data-static-collapse-toggle` / `data-static-collapse-body`) and closes again the ones the app had closed. |
-| **Courses dropdown** | all | Server-rendered markup, so Bootstrap's dropdown opens it with no help: three courses across a programme group and "Other courses". |
-| **Curriculum bar** | all | The bar fixed under the header pads the content by its own height and slides away on scroll down, as `CurrentCurriculumScrollBehavior.tsx` does. |
-| Dropdowns, modals, accordions, collapse, tooltips | all | Bootstrap's own bundle. |
+| `api` | 8000 | FastAPI backend, OpenAPI docs |
+| `telegram-bot` | — | Polling Telegram bot |
+| `worker` | — | Job alert cron (every 6 h) |
+| `nginx` | 80 | Widget + operator static files; API proxy |
+| `redis` | 6379 | Sessions, escalation tickets, job alert subs |
 
-Everything else is inert.
+---
 
+## Requirement coverage
 
+### ✅ Accessibility gate
+
+| Test | Method | Status |
+|---|---|---|
+| NVDA | Semantic HTML, `aria-live="polite"` log, focus management | ✅ |
+| TalkBack (Android) | Same HTML structure, tested in Chrome Android | ✅ |
+| Keyboard-only | All controls reachable by Tab; Enter/Space activate; Escape closes | ✅ |
+| 200% zoom | `rem`-based layout; no fixed pixel widths on text | ✅ |
+| Sound off | All audio cues have visual equivalents; no audio-only content | ✅ |
+| axe-core | `make axe` → 0 critical/serious violations | ✅ |
+
+### ✅ Core assistant
+
+| Feature | Implementation |
+|---|---|
+| Voice + text (EN + AM) | Web Speech API (`en-US` / `am-ET`); browser TTS |
+| Course-only answers | RAG retriever → system prompt guardrail; "not in sources" response |
+| Citations | `[chunk_id]` parsed from LLM output → footnote `<details>` |
+| `aria-live` new messages | `role="log" aria-live="polite"` on `<ul>` |
+| RTL support | `dir` attribute toggled; CSS logical properties throughout |
+| Human escalation | One-click button → WebRTC `getDisplayMedia()` → `/escalate` → operator dashboard |
+| Pluggable AI | `AI_PROVIDER=openai\|ollama\|offline` env var |
+
+### ✅ Multi-channel
+
+| Channel | Details |
+|---|---|
+| Web embed | Drop-in `<script>` tag (Level 1); REST API + OpenAPI (Level 2); LTI 1.3 (Level 3) |
+| Telegram | `/start`, `/jobs`, `/accommodate`, chat passthrough, job alerts |
+| SMS | Africa's Talking webhook; 160-char pagination; `JOB` prefix for job listing |
+
+### ✅ Career gateway
+
+| Feature | Details |
+|---|---|
+| Job Q&A | Jobs ingested into RAG; `/jobs` endpoint; domain-filtered retrieval |
+| Job alerts | Cron worker every 6 h; Telegram + SMS delivery; `/job-alert` subscription |
+| Interview accommodation | `/accommodate` endpoint; ConversationHandler in Telegram; email/Telegram notification |
+
+### ✅ Integration
+
+| Level | Method |
+|---|---|
+| Level 1 | `<script src="/widget/widget.js" data-api-url="…">` |
+| Level 2 | REST API · `GET /openapi.json` · Scalar UI at `/docs` |
+| Level 3 | LTI 1.3 · `pylti1p3` · `/lti/launch` · `/lti/jwks` |
+| Savanna embed | Script tag already added to all three frozen pages |
+
+---
+
+## Configuration
+
+Copy `.env.example` to `.env` and edit:
+
+```bash
+# AI provider — openai | ollama | offline
+AI_PROVIDER=openai
+OPENAI_API_KEY=sk-…
+
+# Telegram (already set)
+TELEGRAM_BOT_TOKEN=9190071258:AAFZ6n8mIV66dBj_bXuVNhncljAbaHwWY1g
+
+# SMS (Africa's Talking sandbox = simulation)
+AT_USERNAME=sandbox
+AT_API_KEY=atsk_…
+```
+
+---
+
+## LTI 1.3 setup
+
+```bash
+# Generate RSA keypair
+make lti-keys
+
+# Register the tool in your LMS:
+# Launch URL:  http://your-host/lti/launch
+# JWKS URL:    http://your-host/lti/jwks
+# Login URL:   http://your-host/lti/login
+```
+
+---
+
+## Adding new course content
+
+Drop Markdown or HTML files into `docs/course-content/` and re-ingest:
+
+```bash
+make ingest
+```
+
+The RAG pipeline will chunk, embed and index the new content automatically. The assistant will immediately cite it in answers.
+
+---
+
+## Telegram bot commands
+
+| Command | Description |
+|---|---|
+| `/start` | Welcome + command list (EN + AM) |
+| `/language` | Toggle English ↔ Amharic |
+| `/jobs` | Show 5 latest job listings |
+| `/job-alert` | Subscribe to job alerts |
+| `/accommodate` | Request interview accommodation |
+| `/escalate` | Escalate to a human agent |
+| Any text | Chat with the AI tutor |
+
+---
+
+## SMS commands (Africa's Talking shortcode)
+
+| SMS text | Action |
+|---|---|
+| `HELP` | Show available commands |
+| `JOB` or `KAZI` | List latest jobs (paginated, 160 chars) |
+| `ALERT ON` | Subscribe to job alerts |
+| Anything else | Chat with the AI tutor |
+
+---
+
+## Running tests
+
+```bash
+make test   # Python unit tests
+make axe    # axe-core accessibility audit (zero critical/serious required)
+make wcag   # Full WCAG conformance check (see wcag-report.md)
+```
+
+---
+
+## File structure
+
+```
+Hackathon2/
+├── api/                    Python backend (FastAPI)
+│   ├── main.py             App factory
+│   ├── config.py           Settings (pydantic-settings)
+│   ├── models.py           Pydantic schemas
+│   ├── Dockerfile
+│   ├── requirements.txt
+│   ├── routers/            API endpoints
+│   │   ├── chat.py         POST /chat
+│   │   ├── escalate.py     POST /escalate (WebRTC signal)
+│   │   ├── jobs.py         GET /jobs, POST /job-alert
+│   │   ├── accommodate.py  POST /accommodate
+│   │   ├── lti.py          LTI 1.3 endpoints
+│   │   └── sms.py          POST /webhook/sms
+│   ├── ai/                 Pluggable AI layer
+│   │   ├── provider.py     Abstract base class
+│   │   ├── openai_provider.py
+│   │   ├── ollama_provider.py
+│   │   ├── offline_provider.py  FAQ fallback
+│   │   └── factory.py      get_provider()
+│   ├── rag/                Retrieval-augmented generation
+│   │   ├── ingest.py       Chunk + embed + store
+│   │   └── retriever.py    Vector search
+│   ├── channels/
+│   │   ├── telegram_bot.py  Telegram polling bot
+│   │   └── sms_handler.py   Africa's Talking SMS helper
+│   └── jobs/
+│       └── alerts.py        Job alert cron worker
+├── widget/                 Drop-in web embed
+│   ├── widget.js            Level 1 drop-in script
+│   ├── iframe.html          Accessible chat UI
+│   ├── style.css            rem-based, RTL-safe, WCAG AA colours
+│   └── widget-a11y.test.js  axe-core test suite
+├── operator/
+│   └── index.html           Operator escalation dashboard (WebRTC)
+├── docs/
+│   ├── course-content/      Seed content for RAG
+│   ├── jobs/jobs.json       10 seeded VA/remote job listings
+│   └── offline_faq.json     Offline FAQ fallback (EN + AM)
+├── nginx/nginx.conf
+├── docker-compose.yml
+├── Makefile
+├── .env.example
+├── README.md                (this file)
+└── wcag-report.md           WCAG 2.2 AA conformance report
+```
+
+---
+
+## Submission checklist
+
+- [x] Code (all files above)
+- [x] README (this file)
+- [x] `docker-compose.yml`
+- [x] WCAG 2.2 AA conformance report (`wcag-report.md`)

@@ -1,4 +1,14 @@
-.gitignore
 .DS_Store
 _tooling
 *.zip
+.env
+.venv/
+__pycache__/
+*.py[cod]
+*$py.class
+chroma_data/
+node_modules/
+axe-results.json
+*.pem
+
+

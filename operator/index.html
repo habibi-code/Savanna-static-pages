@@ -1,0 +1,281 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Savanna Live Help Operator Dashboard</title>
+  <style>
+    :root {
+      --bg: #f8f9fa;
+      --card-bg: #ffffff;
+      --text: #1a1a1a;
+      --text-muted: #595959;
+      --primary: #0066cc;
+      --primary-hover: #004d99;
+      --border: #dcdcdc;
+      --focus: #005fcc;
+      --success: #28a745;
+      --danger: #dc3545;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.5;
+      padding: 1.5rem;
+    }
+
+    header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 2rem;
+      padding-bottom: 1rem;
+      border-bottom: 2px solid var(--border);
+    }
+    h1 { font-size: 1.5rem; color: var(--primary); }
+
+    .status-badge {
+      display: inline-block;
+      padding: 0.25rem 0.75rem;
+      border-radius: 999px;
+      font-size: 0.875rem;
+      font-weight: 600;
+      background: #e9ecef;
+    }
+    .status-badge.online { background: #d4edda; color: #155724; }
+
+    main {
+      display: grid;
+      grid-template-columns: 1fr 1.2fr;
+      gap: 1.5rem;
+    }
+    @media (max-width: 900px) {
+      main { grid-template-columns: 1fr; }
+    }
+
+    .card {
+      background: var(--card-bg);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 1.25rem;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+    }
+    h2 { font-size: 1.2rem; margin-bottom: 1rem; }
+
+    .ticket-list {
+      list-style: none;
+      display: flex;
+      flex-direction: column;
+      gap: 0.75rem;
+      max-height: 550px;
+      overflow-y: auto;
+    }
+    .ticket-item {
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 0.85rem;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      transition: background 0.15s;
+    }
+    .ticket-item:hover, .ticket-item:focus-within {
+      background: #f1f7ff;
+      border-color: var(--primary);
+    }
+    .ticket-meta { font-size: 0.85rem; color: var(--text-muted); }
+    .ticket-reason { font-weight: 600; margin-bottom: 0.25rem; }
+
+    button {
+      background: var(--primary);
+      color: white;
+      border: none;
+      border-radius: 4px;
+      padding: 0.5rem 1rem;
+      font-size: 0.9rem;
+      font-weight: 600;
+      cursor: pointer;
+    }
+    button:hover { background: var(--primary-hover); }
+    button:focus-visible {
+      outline: 3px solid var(--focus);
+      outline-offset: 2px;
+    }
+
+    .screen-container {
+      background: #000;
+      border-radius: 6px;
+      aspect-ratio: 16 / 9;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: #aaa;
+      overflow: hidden;
+      margin-bottom: 1rem;
+    }
+    video {
+      width: 100%;
+      height: 100%;
+      object-fit: contain;
+    }
+
+    .empty-state {
+      text-align: center;
+      padding: 2rem;
+      color: var(--text-muted);
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <div>
+      <h1>Savanna Operator Dashboard</h1>
+      <p style="font-size: 0.875rem; color: var(--text-muted);">Real-time Live Help &amp; Learner Screen Sharing</p>
+    </div>
+    <div>
+      <span class="status-badge online" id="connection-status">● Live polling</span>
+    </div>
+  </header>
+
+  <main>
+    <!-- Ticket Queue -->
+    <section class="card" aria-labelledby="queue-heading">
+      <h2 id="queue-heading">Escalation Queue (<span id="ticket-count">0</span>)</h2>
+      <ul class="ticket-list" id="ticket-list" role="log" aria-live="polite">
+        <li class="empty-state">No active escalation tickets yet.</li>
+      </ul>
+    </section>
+
+    <!-- Active Call & Screen Share View -->
+    <section class="card" aria-labelledby="session-heading">
+      <h2 id="session-heading">Active Learner Session</h2>
+      <div id="session-info" style="margin-bottom: 0.75rem; font-size: 0.9rem; color: var(--text-muted);">
+        No session currently connected. Select "Accept" from the queue.
+      </div>
+      <div class="screen-container">
+        <video id="remote-video" autoplay playsinline aria-label="Learner screen share video stream">
+          Your browser does not support inline video playback.
+        </video>
+      </div>
+      <div>
+        <button type="button" id="disconnect-btn" style="background: var(--danger); display: none;">End Session</button>
+      </div>
+    </section>
+  </main>
+
+  <script>
+    (function () {
+      const urlParams = new URLSearchParams(window.location.search);
+      const API_BASE = urlParams.get('api') || window.location.origin.replace(/:[0-9]+$/, ':8000');
+      let activePeer = null;
+
+      async function fetchTickets() {
+        try {
+          const res = await fetch(`${API_BASE}/escalate`);
+          if (!res.ok) return;
+          const tickets = await res.json();
+          renderTickets(tickets);
+        } catch (err) {
+          console.warn("Failed to fetch tickets:", err);
+        }
+      }
+
+      function renderTickets(tickets) {
+        const list = document.getElementById('ticket-list');
+        const countSpan = document.getElementById('ticket-count');
+        countSpan.textContent = tickets.length;
+
+        if (tickets.length === 0) {
+          list.innerHTML = '<li class="empty-state">No active escalation tickets.</li>';
+          return;
+        }
+
+        list.innerHTML = tickets.map(t => `
+          <li class="ticket-item" id="ticket-${t.ticket_id}">
+            <div>
+              <div class="ticket-reason">${escapeHtml(t.reason || 'Assistance requested')}</div>
+              <div class="ticket-meta">
+                ID: ${t.ticket_id.substring(0, 8)}... | Session: ${escapeHtml(t.session_id || 'N/A')}
+                ${t.has_sdp ? ' | 🖥️ Screen share ready' : ''}
+              </div>
+            </div>
+            <button type="button" onclick="connectSession('${t.ticket_id}')" aria-label="Accept ticket ${t.ticket_id.substring(0, 8)}">
+              Accept
+            </button>
+          </li>
+        `).join('');
+      }
+
+      window.connectSession = async function (ticketId) {
+        const info = document.getElementById('session-info');
+        info.textContent = `Connecting to ticket ${ticketId}...`;
+
+        try {
+          const res = await fetch(`${API_BASE}/escalate/${ticketId}`);
+          if (!res.ok) throw new Error("Ticket details not found");
+          const ticket = await res.json();
+
+          info.textContent = `Connected with session: ${ticket.session_id} (${ticket.reason || 'General help'})`;
+          document.getElementById('disconnect-btn').style.display = 'inline-block';
+
+          if (ticket.sdp_offer) {
+            setupWebRTC(ticketId, ticket.sdp_offer);
+          } else {
+            info.textContent += " (No screen-share stream was initiated by learner)";
+          }
+        } catch (err) {
+          info.textContent = `Connection error: ${err.message}`;
+        }
+      };
+
+      async function setupWebRTC(ticketId, sdpOfferStr) {
+        if (activePeer) activePeer.close();
+        const peer = new RTCPeerConnection({
+          iceServers: [{ urls: 'stun:stun.l.google.com:19302' }]
+        });
+        activePeer = peer;
+
+        const video = document.getElementById('remote-video');
+        peer.ontrack = (event) => {
+          if (video.srcObject !== event.streams[0]) {
+            video.srcObject = event.streams[0];
+          }
+        };
+
+        const offer = JSON.parse(sdpOfferStr);
+        await peer.setRemoteDescription(new RTCSessionDescription(offer));
+        const answer = await peer.createAnswer();
+        await peer.setLocalDescription(answer);
+
+        await fetch(`${API_BASE}/escalate/${ticketId}/answer`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ sdp_answer: JSON.stringify(answer) })
+        });
+      }
+
+      document.getElementById('disconnect-btn').addEventListener('click', () => {
+        if (activePeer) {
+          activePeer.close();
+          activePeer = null;
+        }
+        document.getElementById('remote-video').srcObject = null;
+        document.getElementById('session-info').textContent = "Session closed.";
+        document.getElementById('disconnect-btn').style.display = 'none';
+      });
+
+      function escapeHtml(str) {
+        const div = document.createElement('div');
+        div.textContent = str;
+        return div.innerHTML;
+      }
+
+      fetchTickets();
+      setInterval(fetchTickets, 8000);
+    })();
+  </script>
+</body>
+</html>

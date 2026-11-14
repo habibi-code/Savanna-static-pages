@@ -56,11 +56,33 @@
             </p>
           </div>
         </div>
+        <div class="card">
+          <div class="card-body">
+            <h2 class="h5 card-title"><a href="operator/index.html">Live Help — Operator Dashboard</a></h2>
+            <p class="card-text mb-0">
+              Real-time live queue for human operators with WebRTC learner screen-share acceptance
+              and live chat support.
+            </p>
+          </div>
+        </div>
+      </div>
+
+      <div class="mt-4 p-3 border rounded bg-white page-card">
+        <h3 class="h6 mb-2">Track 3: Multilingual Assistant &amp; Live Help Endpoints</h3>
+        <ul class="mb-0 small">
+          <li><strong>REST API &amp; OpenAPI Docs:</strong> <a href="http://localhost:8000/docs" target="_blank" rel="noreferrer">http://localhost:8000/docs</a></li>
+          <li><strong>Widget Drop-in URL:</strong> <code>http://localhost:8000/widget/widget.js</code></li>
+          <li><strong>LTI 1.3 Launch:</strong> <code>http://localhost:8000/lti/launch</code></li>
+          <li><strong>Telegram Bot:</strong> <code>@SavannaAssistantBot</code> (Token configured)</li>
+          <li><strong>SMS Gateway (Africa's Talking):</strong> <code>http://localhost:8000/webhook/sms</code></li>
+        </ul>
       </div>
 
       <p class="mt-4 text-body-secondary">
-        See <code>README.md</code> for what is real, what was substituted, and how to regenerate.
+        See <code>README.md</code> and <code>wcag-report.md</code> for architectural details, WCAG 2.2 AA audit logs, and test commands.
       </p>
     </main>
+    <!-- Savanna Multilingual Assistant & Live Help Widget (Level 1 Drop-in) -->
+    <script src="widget/widget.js" data-api-url="http://localhost:8000" data-lang="en"></script>
   </body>
 </html>

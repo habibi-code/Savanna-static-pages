@@ -1,0 +1,74 @@
+[
+  {
+    "question": "What is the overall score threshold for graduation?",
+    "answer": "The graduation threshold is 70%. You can see your progress on the course-progression gauge on your homepage.",
+    "source": "VA-1 Learner Homepage",
+    "language": "en"
+  },
+  {
+    "question": "How do I mark a concept as complete?",
+    "answer": "Scroll to the bottom of the concept page and click the 'Mark as complete' button. Your progress will be saved and the item will appear as read in the curriculum navigation panel.",
+    "source": "Concept Page — The Future of the VA Industry",
+    "language": "en"
+  },
+  {
+    "question": "What happens if I miss a week deadline?",
+    "answer": "If you miss a week's deadline your score for that period may be marked 'slightly behind'. Contact your cohort coordinator or use the escalation button in the assistant to speak with a support agent.",
+    "source": "WR 100 Paced Homepage",
+    "language": "en"
+  },
+  {
+    "question": "How do I switch between courses?",
+    "answer": "Click the course name at the top of the page to open the course switcher dropdown. It shows all courses in your programme along with their current status.",
+    "source": "Learner Homepage",
+    "language": "en"
+  },
+  {
+    "question": "What is a pacing boost?",
+    "answer": "A pacing boost notification appears when you are within 11 days of falling behind the recommended completion pace. It shows you how many activities to complete to get back on track.",
+    "source": "VA-1 Self-Paced Homepage",
+    "language": "en"
+  },
+  {
+    "question": "How do I access conference rooms?",
+    "answer": "Click 'Conference rooms' in the left sidebar navigation. You can join scheduled video sessions with peers and instructors.",
+    "source": "Learner Homepage Sidebar",
+    "language": "en"
+  },
+  {
+    "question": "Where can I find upcoming events?",
+    "answer": "Upcoming events are displayed in the right column of your homepage. They include deadlines, live sessions, and office hours.",
+    "source": "Learner Homepage",
+    "language": "en"
+  },
+  {
+    "question": "What is the VA industry?",
+    "answer": "The Virtual Assistant (VA) industry involves providing remote administrative, technical, creative, or personal support services to businesses and entrepreneurs. It is one of the fastest-growing sectors for remote work in Africa.",
+    "source": "Concept: The Future of the VA Industry",
+    "language": "en"
+  },
+  {
+    "question": "How do I request a QA review?",
+    "answer": "Navigate to 'QA Reviews I can make' in the left sidebar. You can submit your work for peer review or request a review from a qualified peer.",
+    "source": "Learner Homepage Sidebar",
+    "language": "en"
+  },
+  {
+    "question": "What tools are recommended for the course?",
+    "answer": "The course recommends AI tools such as ChatGPT for drafting and Grammarly for editing. These are shown in the 'Tools' section of relevant concept pages.",
+    "source": "Concept Page",
+    "language": "en"
+  },
+  {
+    "question": "የኮርስ ማጠናቀቂያ ደረጃ ምን ያህል ነው?",
+    "answer": "ለምረቃ አስፈላጊው ደረጃ 70% ነው። እድገትዎን በዋና ገጽዎ ላይ ባለው የኮርስ ሂደት መለኪያ ማየት ይችላሉ።",
+    "source": "VA-1 Learner Homepage",
+    "language": "am"
+  },
+  {
+    "question": "ኮንሴፕቱን እንዴት ማጠናቀቄን ምልክት ማድረግ እችላለሁ?",
+    "answer": "ወደ ኮንሴፕቱ ገጽ ስር ወርደው 'Mark as complete' የሚለውን ቁልፍ ይጫኑ። እድገትዎ ይቀመጣል።",
+    "source": "Concept Page",
+    "language": "am"
+  }
+]
