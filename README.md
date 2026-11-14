@@ -57,6 +57,9 @@ Everything else is inert.
 
 ## Inklu — Learning without barriers
 
+Module owners can find the shared Git baseline, proposed lesson identity fields
+and planned service endpoints in the [team integration contracts](docs/team-integration.md).
+
 Open the floating **Inklu Companion** button on the lesson page. Its desktop drawer
 becomes a full-screen reader on small screens. Choose **Explain Simply** for a
 beginner-friendly English explanation, **Translate** for Amharic, or **Describe Visuals**

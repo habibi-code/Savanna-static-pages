@@ -85,6 +85,7 @@
               <div id="preview"></div>
             </details>
           </div>
+          <span id="tab-end" tabindex="0" class="sr-only"></span>
         </dialog>`;
 
       if (window.InkluAmharicAudio) this.speech = new window.InkluAmharicAudio(root.getElementById('translation'),
@@ -134,15 +135,20 @@
         this.watchLesson();
         if (this.isConnected) toggle.focus({ preventScroll: true });
       });
-      panel.addEventListener('keydown', event => {
-        if (event.key !== 'Tab') return;
-        const stops = [...panel.querySelectorAll('button, summary, [tabindex="0"]')]
-          .filter(el => el.tabIndex >= 0 && !el.disabled && el.getClientRects().length);
-        const edge = event.shiftKey ? stops[0] : stops.at(-1);
-        if (root.activeElement === edge) {
-          event.preventDefault();
-          (event.shiftKey ? stops.at(-1) : stops[0]).focus();
-        }
+      // Keep Close first and this boundary last. The browser determines every
+      // stop between them, including links, form fields and nested components.
+      const close = root.getElementById('close');
+      const end = root.getElementById('tab-end');
+      let wrappingBack = false;
+      end.addEventListener('focus', () => {
+        if (!wrappingBack) close.focus();
+      });
+      close.addEventListener('keydown', event => {
+        if (event.key !== 'Tab' || !event.shiftKey || event.defaultPrevented) return;
+        wrappingBack = true;
+        end.focus({ preventScroll: true });
+        wrappingBack = false;
+        // Let the native Shift+Tab move from the boundary to the last control.
       });
     }
 

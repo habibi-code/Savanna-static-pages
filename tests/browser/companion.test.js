@@ -36,6 +36,7 @@ async function setup(t, options = {}) {
     reducedMotion: 'reduce', forcedColors: options.forcedColors ?? 'none' });
   t.after(() => page.close());
   page.setDefaultTimeout(5000);
+  page.setDefaultNavigationTimeout(15000);
   const calls = [];
   const errors = [];
   page.on('pageerror', error => errors.push(error.message));
@@ -139,6 +140,39 @@ test('keyboard launcher, modal focus, mode navigation, escape and no layout shif
   assert.equal(await panel.getByRole('tab').count(), 0);
   assert.equal(await panel.getByText('Extracted lesson content (debug preview)').isVisible(), false);
   assert.deepEqual(calls, []);
+  await page.keyboard.press('Escape');
+  await panel.waitFor({ state: 'hidden' });
+  assert(await launcher.evaluate(el => el.matches(':focus')));
+});
+
+test('dialog wraps through dynamically added citations and chat fields in native tab order', async t => {
+  const { page, launcher, panel, button } = await setup(t);
+  await launcher.press('Enter');
+  await panel.locator('.workspace').evaluate(workspace => {
+    workspace.insertAdjacentHTML('beforeend', `
+      <a href="#source">Lesson citation</a>
+      <input disabled aria-label="Disabled field">
+      <textarea aria-label="Message"></textarea>
+      <span inert><button>Unavailable action</button></span>
+      <select aria-label="Recipient"><option>Tutor</option></select>`);
+  });
+  const close = button('Close Inklu'), lastAction = button('Describe Visuals');
+  const citation = panel.getByRole('link', { name: 'Lesson citation' });
+  const message = panel.getByRole('textbox', { name: 'Message' });
+  const recipient = panel.getByRole('combobox', { name: 'Recipient' });
+  async function step(key, target) {
+    await page.keyboard.press(key);
+    assert(await target.evaluate(el => el.matches(':focus')));
+  }
+  await step('Shift+Tab', recipient);
+  await step('Shift+Tab', message);
+  await step('Shift+Tab', citation);
+  await step('Shift+Tab', lastAction);
+  await step('Tab', citation);
+  await step('Tab', message);
+  await step('Tab', recipient);
+  await step('Tab', close);
+  await message.focus();
   await page.keyboard.press('Escape');
   await panel.waitFor({ state: 'hidden' });
   assert(await launcher.evaluate(el => el.matches(':focus')));
