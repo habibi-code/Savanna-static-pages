@@ -166,18 +166,20 @@ async def check_and_send_alerts():
                 logger.info("Sent job alert %s to %s via %s", job_id, contact, channel)
 
 
-def main():
+async def main():
     logger.info("Starting Savanna Job Alert Worker (interval: every 6h)...")
     scheduler = AsyncIOScheduler()
     scheduler.add_job(check_and_send_alerts, "interval", hours=6, next_run_time=datetime.now(timezone.utc))
     scheduler.start()
-
-    loop = asyncio.get_event_loop()
     try:
-        loop.run_forever()
+        while True:
+            await asyncio.sleep(3600)
     except (KeyboardInterrupt, SystemExit):
         scheduler.shutdown()
 
 
 if __name__ == "__main__":
-    main()
+    try:
+        asyncio.run(main())
+    except (KeyboardInterrupt, SystemExit):
+        pass
