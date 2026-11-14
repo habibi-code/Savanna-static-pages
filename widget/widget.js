@@ -7,9 +7,26 @@
 (function () {
   'use strict';
 
-  /* ── 1. Resolve API base URL ─────────────────────────────────────────── */
+  /* ── 0. Load Pluggable Adaptive Accessibility Engine ─────────────────── */
   const scriptEl = document.currentScript ||
     Array.from(document.querySelectorAll('script[src*="widget.js"]')).pop();
+
+  (function loadA11yEngine() {
+    if (window.__SAVANNA_A11Y_ENGINE__ || document.querySelector('script[src*="a11y-engine.js"]')) return;
+    const a11yScript = document.createElement('script');
+    let a11ySrc = '/widget/a11y-engine.js';
+    if (scriptEl && scriptEl.src) {
+      try {
+        const u = new URL(scriptEl.src);
+        a11ySrc = u.origin + '/widget/a11y-engine.js';
+      } catch (_) {}
+    }
+    a11yScript.src = a11ySrc;
+    a11yScript.async = true;
+    document.head.appendChild(a11yScript);
+  })();
+
+  /* ── 1. Resolve API base URL ─────────────────────────────────────────── */
   const apiUrl = (scriptEl && scriptEl.dataset.apiUrl)
     ? scriptEl.dataset.apiUrl.replace(/\/$/, '')
     : (window.location.origin + '/api');

@@ -1,0 +1,290 @@
+/**
+ * Savanna Pluggable Accessibility Engine — CSS
+ * WCAG 2.2 AA Compliant | Scoped styles | Supports 200% Zoom & Forced Colors
+ */
+
+:root {
+  --sa11y-primary: #005fcc;
+  --sa11y-primary-hover: #004494;
+  --sa11y-bg: #ffffff;
+  --sa11y-surface: #f8fafc;
+  --sa11y-border: #cbd5e1;
+  --sa11y-text: #0f172a;
+  --sa11y-text-muted: #475569;
+  --sa11y-focus-ring: #005fcc;
+  --sa11y-card-active-bg: #eff6ff;
+  --sa11y-card-active-border: #2563eb;
+  --sa11y-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --sa11y-bg: #0f172a;
+    --sa11y-surface: #1e293b;
+    --sa11y-border: #334155;
+    --sa11y-text: #f8fafc;
+    --sa11y-text-muted: #94a3b8;
+    --sa11y-focus-ring: #60a5fa;
+    --sa11y-card-active-bg: #1e3a8a;
+    --sa11y-card-active-border: #3b82f6;
+  }
+}
+
+/* ── Floating Accessibility Trigger Button ────────────────────────────── */
+#savanna-a11y-trigger {
+  all: unset;
+  position: fixed;
+  inset-block-end: 1.5rem;
+  inset-inline-start: 1.5rem;
+  z-index: 2147483640;
+  width: 3.5rem;
+  height: 3.5rem;
+  border-radius: 50%;
+  background: var(--sa11y-primary);
+  color: #ffffff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.25);
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+#savanna-a11y-trigger:hover {
+  transform: scale(1.08);
+  box-shadow: 0 6px 24px rgba(0, 0, 0, 0.32);
+}
+
+#savanna-a11y-trigger:focus-visible {
+  outline: 4px solid var(--sa11y-focus-ring);
+  outline-offset: 3px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  #savanna-a11y-trigger {
+    transition: none !important;
+  }
+}
+
+/* ── Modal Backdrop ────────────────────────────────────────────────────── */
+.sa11y-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 2147483647;
+  background: rgba(15, 23, 42, 0.75);
+  backdrop-filter: blur(4px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1rem;
+  overflow-y: auto;
+}
+
+.sa11y-backdrop[hidden] {
+  display: none !important;
+}
+
+/* ── Modal Dialog Shell ────────────────────────────────────────────────── */
+.sa11y-modal {
+  background: var(--sa11y-bg);
+  color: var(--sa11y-text);
+  border: 2px solid var(--sa11y-border);
+  border-radius: 1rem;
+  box-shadow: var(--sa11y-shadow);
+  width: 100%;
+  max-width: 680px;
+  max-height: calc(100vh - 2rem);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+  line-height: 1.5;
+}
+
+/* Header */
+.sa11y-modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  padding: 1.25rem 1.5rem;
+  border-bottom: 1px solid var(--sa11y-border);
+  background: var(--sa11y-surface);
+}
+
+.sa11y-title-group {
+  flex: 1;
+  padding-right: 1rem;
+}
+
+.sa11y-title-group h2 {
+  font-size: 1.35rem;
+  font-weight: 800;
+  margin: 0 0 0.25rem 0;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.sa11y-title-group p {
+  font-size: 0.9rem;
+  color: var(--sa11y-text-muted);
+  margin: 0;
+}
+
+.sa11y-lang-switch {
+  all: unset;
+  border: 1px solid var(--sa11y-border);
+  background: var(--sa11y-bg);
+  color: var(--sa11y-text);
+  font-weight: 700;
+  font-size: 0.8rem;
+  padding: 0.35rem 0.65rem;
+  border-radius: 0.375rem;
+  cursor: pointer;
+}
+
+.sa11y-lang-switch:focus-visible {
+  outline: 3px solid var(--sa11y-focus-ring);
+  outline-offset: 2px;
+}
+
+/* Body / Options Grid */
+.sa11y-modal-body {
+  padding: 1.5rem;
+  overflow-y: auto;
+  flex: 1;
+}
+
+.sa11y-notice {
+  font-size: 0.85rem;
+  background: var(--sa11y-surface);
+  border-inline-start: 4px solid var(--sa11y-primary);
+  padding: 0.65rem 0.85rem;
+  border-radius: 0.25rem;
+  margin-bottom: 1.25rem;
+  color: var(--sa11y-text-muted);
+}
+
+.sa11y-options-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 0.85rem;
+}
+
+/* Individual Adaptation Option Card */
+.sa11y-card {
+  display: flex;
+  align-items: flex-start;
+  gap: 1rem;
+  padding: 1rem;
+  border: 2px solid var(--sa11y-border);
+  border-radius: 0.75rem;
+  background: var(--sa11y-bg);
+  cursor: pointer;
+  transition: border-color 0.15s, background-color 0.15s;
+  user-select: none;
+}
+
+.sa11y-card:hover {
+  border-color: var(--sa11y-primary);
+  background: var(--sa11y-surface);
+}
+
+.sa11y-card.sa11y-selected {
+  border-color: var(--sa11y-card-active-border);
+  background: var(--sa11y-card-active-bg);
+}
+
+.sa11y-card input[type="checkbox"] {
+  appearance: auto;
+  width: 1.35rem;
+  height: 1.35rem;
+  margin-top: 0.2rem;
+  cursor: pointer;
+  accent-color: var(--sa11y-primary);
+}
+
+.sa11y-card-content {
+  flex: 1;
+}
+
+.sa11y-card-title {
+  font-weight: 700;
+  font-size: 1rem;
+  margin-bottom: 0.2rem;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.sa11y-card-desc {
+  font-size: 0.875rem;
+  color: var(--sa11y-text-muted);
+}
+
+/* Modal Actions Footer */
+.sa11y-modal-footer {
+  padding: 1rem 1.5rem;
+  border-top: 1px solid var(--sa11y-border);
+  background: var(--sa11y-surface);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+
+.sa11y-btn {
+  all: unset;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 600;
+  font-size: 0.95rem;
+  padding: 0.65rem 1.25rem;
+  border-radius: 0.5rem;
+  cursor: pointer;
+  min-height: 2.75rem;
+}
+
+.sa11y-btn-ghost {
+  color: var(--sa11y-text-muted);
+}
+
+.sa11y-btn-ghost:hover {
+  color: var(--sa11y-text);
+  background: rgba(0, 0, 0, 0.05);
+}
+
+.sa11y-btn-primary {
+  background: var(--sa11y-primary);
+  color: #ffffff;
+}
+
+.sa11y-btn-primary:hover {
+  background: var(--sa11y-primary-hover);
+}
+
+.sa11y-btn:focus-visible,
+.sa11y-card:focus-within {
+  outline: 3px solid var(--sa11y-focus-ring);
+  outline-offset: 3px;
+}
+
+/* High Contrast & Forced Colors Override */
+@media (forced-colors: active) {
+  #savanna-a11y-trigger {
+    background: ButtonText !important;
+    color: ButtonFace !important;
+  }
+  .sa11y-modal {
+    border: 3px solid ButtonText !important;
+  }
+  .sa11y-card.sa11y-selected {
+    outline: 2px solid Highlight !important;
+  }
+  .sa11y-btn-primary {
+    background: Highlight !important;
+    color: HighlightText !important;
+  }
+}
