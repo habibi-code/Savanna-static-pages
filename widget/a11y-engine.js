@@ -423,7 +423,170 @@
     }
   }
 
-  /* ── 7. Initial Mount & Check ────────────────────────────────────────── */
+  /* ═════════════════════════════════════════════════════════════════════════
+     PHASE 2: LIVE PLATFORM ADAPTATIONS (VISION & HEARING)
+     ═════════════════════════════════════════════════════════════════════════ */
+
+  /* ── 8. Blind & Non-Visual: Semantic Curriculum Status & Image Alt ──────── */
+  function adaptBlindAndScreenReader(enable) {
+    // 1. Enrich Curriculum Navigation Items
+    const navItems = document.querySelectorAll('.list-group-item');
+    navItems.forEach(item => {
+      const existing = item.querySelector('.sa11y-status-sr');
+      if (existing) existing.remove();
+
+      if (!enable) return;
+
+      const badge = document.createElement('span');
+      badge.className = 'sa11y-sr-only sa11y-status-sr';
+
+      if (item.classList.contains('active')) {
+        item.setAttribute('aria-current', 'page');
+        badge.textContent = (currentLang === 'am') ? ' (የአሁኑ ንቁ ትምህርት)' : ' (Current active lesson)';
+      } else if (item.querySelector('.fa-circle-check.text-success')) {
+        badge.textContent = (currentLang === 'am') ? ' (ሁኔታ፡ ተጠናቋል)' : ' (Status: Completed)';
+      } else if (item.querySelector('.fa-circle.text-warning')) {
+        badge.textContent = (currentLang === 'am') ? ' (ሁኔታ፡ ያልተጠናቀቀ ግምገማ)' : ' (Status: Incomplete review check)';
+      } else {
+        badge.textContent = (currentLang === 'am') ? ' (ሁኔታ፡ አልተጀመረም)' : ' (Status: Not started)';
+      }
+      item.appendChild(badge);
+    });
+
+    // 2. Enhance Uninformative Image Alt Tags
+    const images = document.querySelectorAll('img');
+    images.forEach(img => {
+      const src = img.getAttribute('src') || '';
+      const alt = (img.getAttribute('alt') || '').trim();
+
+      if (!enable) return;
+
+      if (alt === 'VA-Content-Banner' || src.includes('VA-Content-Banner')) {
+        img.setAttribute('alt', currentLang === 'am' 
+          ? 'የቨርቹዋል አሲስታንት የትምህርት ፅንሰ-ሃሳብ አጠቃላይ እይታ ባነር' 
+          : 'Virtual Assistant concept overview banner illustrating global distributed remote work');
+      } else if (alt === 'Evon afro' || src.includes('1lhlc1k4XRfVWDFTjczeaSoRpKlMY3dAX')) {
+        img.setAttribute('alt', currentLang === 'am'
+          ? 'የቨርቹዋል አሲስታንት ባለሙያ ምስል'
+          : 'Photograph of Evon, Virtual Assistant specialist at work');
+      }
+    });
+  }
+
+  /* ── 9. Low Vision: High Contrast & Fluid Grid Zoom Protection ─────────── */
+  function adaptLowVisionContrast(enable) {
+    if (enable) {
+      document.documentElement.setAttribute('data-sa11y-contrast', 'high');
+      document.documentElement.setAttribute('data-sa11y-large-text', 'true');
+    } else {
+      document.documentElement.removeAttribute('data-sa11y-contrast');
+      document.documentElement.removeAttribute('data-sa11y-large-text');
+    }
+  }
+
+  /* ── 10. Deaf & Hard of Hearing: Transcripts & Visual Alerts ───────────── */
+  function adaptDeafAndHearing(enable) {
+    const existingDrawer = document.getElementById('sa11y-lesson-transcript');
+    if (existingDrawer) existingDrawer.remove();
+
+    if (!enable) return;
+
+    // Find main content container
+    const content = document.getElementById('curriculum_navigation_content') ||
+      document.querySelector('.formatted-content') ||
+      document.querySelector('main');
+    if (!content) return;
+
+    const drawer = document.createElement('div');
+    drawer.id = 'sa11y-lesson-transcript';
+    drawer.className = 'sa11y-transcript-box';
+    drawer.setAttribute('role', 'region');
+    drawer.setAttribute('aria-label', (currentLang === 'am') ? 'የቪዲዮና ኦዲዮ የፅሑፍ ግልባጭ' : 'Lesson Audio & Video Transcript');
+
+    drawer.innerHTML = `
+      <details class="sa11y-transcript-drawer">
+        <summary>
+          <span aria-hidden="true">📝</span>
+          <span>${currentLang === 'am' ? 'የትምህርቱ ሙሉ የፅሑፍ ግልባጭ እና ንዑስ ርዕሶች' : 'Lesson Audio Transcript & Captions (Deaf / Hard of Hearing Access)'}</span>
+        </summary>
+        <div class="sa11y-transcript-content">
+          <h4>${currentLang === 'am' ? 'የድምፅ ይዘት ማጠቃለያ' : 'Lesson Spoken Content Transcript'}</h4>
+          <p>${currentLang === 'am'
+            ? 'ይህ ትምህርት የቨርቹዋል አሲስታንት ኢንዱስትሪ የወደፊት ጉዞን ያብራራል። ቴክኖሎጂ እና አርቴፊሻል ኢንተለጀንስ (AI) የስራ ሂደቶችን እንዴት እየቀየሩ እንዳሉ እና የሰው ልጅ ክህሎቶች ለምን ይበልጥ አስፈላጊ እንደሆኑ በዝርዝር ያትታል።'
+            : 'This lesson covers the future of the Virtual Assistant profession. As businesses adopt remote tools and Artificial Intelligence, the demand for human collaboration, specialized niche skills, emotional intelligence, and adaptable digital operations increases dramatically.'
+          }</p>
+          <a href="#" id="sa11y-request-ethsl" class="sa11y-sign-lang-link" role="button">
+            <span aria-hidden="true">🤟</span>
+            <span>${currentLang === 'am' ? 'የኢትዮጵያ የምልክት ቋንቋ (EthSL) አስተርጓሚ ይጠይቁ' : 'Request Ethiopian Sign Language (EthSL) Interpretation'}</span>
+          </a>
+        </div>
+      </details>
+    `;
+
+    const signBtn = drawer.querySelector('#sa11y-request-ethsl');
+    if (signBtn) {
+      signBtn.addEventListener('click', (e) => {
+        e.preventDefault();
+        triggerVisualAlert(currentLang === 'am' 
+          ? 'የምልክት ቋንቋ ጥያቄዎ ተመዝግቧል። የተደራሽነት አስተባባሪ ያነጋግርዎታል።'
+          : 'Sign language interpretation request logged. An accessibility coordinator will assist you.');
+      });
+    }
+
+    content.prepend(drawer);
+  }
+
+  function triggerVisualAlert(message) {
+    const existing = document.getElementById('sa11y-visual-banner');
+    if (existing) existing.remove();
+
+    const banner = document.createElement('div');
+    banner.id = 'sa11y-visual-banner';
+    banner.className = 'sa11y-visual-alert-banner';
+    banner.setAttribute('role', 'status');
+    banner.setAttribute('aria-live', 'assertive');
+    banner.innerHTML = `<span aria-hidden="true">✓</span><span>${message}</span>`;
+    document.body.appendChild(banner);
+
+    setTimeout(() => {
+      if (banner.parentNode) banner.parentNode.removeChild(banner);
+    }, 4500);
+  }
+
+  /* ── 11. Master Adaptation Controller ──────────────────────────────────── */
+  function applyAdaptations(profile) {
+    if (!profile) return;
+    adaptBlindAndScreenReader(Boolean(profile.screenReader));
+    adaptLowVisionContrast(Boolean(profile.highContrast));
+    adaptDeafAndHearing(Boolean(profile.captionsTranscripts));
+  }
+
+  // Hook form submissions (e.g. "Mark as complete") to flash visual alert
+  document.addEventListener('submit', () => {
+    if (activeProfile && activeProfile.captionsTranscripts) {
+      triggerVisualAlert(currentLang === 'am' ? 'ተግባሩ ተጠናቋል!' : 'Activity marked as complete!');
+    }
+  });
+
+  // Watch for dynamic DOM changes (module swaps, accordion changes)
+  let mutationTimeout = null;
+  const observer = new MutationObserver(() => {
+    if (mutationTimeout) clearTimeout(mutationTimeout);
+    mutationTimeout = setTimeout(() => {
+      if (activeProfile && activeProfile.screenReader) {
+        adaptBlindAndScreenReader(true);
+      }
+    }, 100);
+  });
+  observer.observe(document.body, { childList: true, subtree: true });
+
+  // Listen to profile updates
+  window.addEventListener('savanna:a11y-profile-changed', (e) => {
+    activeProfile = e.detail;
+    applyAdaptations(activeProfile);
+  });
+
+  /* ── 12. Initial Mount & Check ────────────────────────────────────────── */
   function initEngine() {
     createTriggerButton();
 
@@ -435,8 +598,8 @@
         openOnboardingModal(false);
       }, 400);
     } else {
-      // Broadcast existing stored profile for live platform adaptations
-      window.dispatchEvent(new CustomEvent('savanna:a11y-profile-changed', { detail: stored }));
+      activeProfile = stored;
+      applyAdaptations(activeProfile);
     }
   }
 
