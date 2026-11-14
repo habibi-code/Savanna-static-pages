@@ -9,7 +9,7 @@ def get_provider() -> AIProvider:
     if settings.ai_provider == "ollama":
         from ai.ollama_provider import OllamaProvider  # noqa: PLC0415
         return OllamaProvider(settings)
-    elif settings.ai_provider == "offline":
+    elif settings.ai_provider == "offline" or not settings.openai_api_key:
         from ai.offline_provider import OfflineProvider  # noqa: PLC0415
         return OfflineProvider(settings)
     else:  # default: openai
