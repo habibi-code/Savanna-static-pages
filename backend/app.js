@@ -29,7 +29,7 @@ export function makeServer(client, directory = fileURLToPath(new URL('./output/'
       if (!validHost) throw new HttpError(403, 'Host is not allowed.');
       if (!isHelp && !learningPaths.includes(path)) {
         if (req.method !== 'GET') throw new HttpError(404, 'Not found.');
-        return await servePage(path, res);
+        return await servePage(path, res, deployment.publicDemo);
       }
       const origin = req.headers.origin;
       const crossOrigin = origin !== undefined && origin !== (publicOrigin?.origin ?? 'http://' + host);
@@ -52,6 +52,7 @@ export function makeServer(client, directory = fileURLToPath(new URL('./output/'
         res.setHeader('Allow', method);
         throw new HttpError(405, 'Use ' + method + '.');
       }
+      if (isHelp && deployment.publicDemo) throw new HttpError(503, 'Human Help is unavailable in this public demo.');
       checkRate(rateKey, res);
       if (isHelp) return await helpRoute(req, res, deployment.help, ticketId);
       await learning(req, res, path);

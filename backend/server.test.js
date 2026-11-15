@@ -5,6 +5,7 @@ import { request } from 'node:http';
 import test from 'node:test';
 import AddisAI, { APIConnectionTimeoutError } from 'addisai';
 import { makeServer } from './server.js';
+import { deploymentConfig } from './config/deployment.js';
 
 const amharic = 'ሁለቱንም የሰዓት ሰቆች ያረጋግጡ።';
 async function start(t, handler = async () => ({ text: amharic }), chat, deployment) {
@@ -286,3 +287,76 @@ test('only public static paths are served and opening pages makes no provider ca
   }
   assert.equal(calls.length, 0);
 });
+
+test('deploymentConfig resolves Render, host overrides, trailing slashes, and public demo defaults', () => {
+  assert.deepEqual(deploymentConfig({}), {
+    host: '127.0.0.1', publicDemo: false, publicOrigin: undefined,
+    lessonOrigins: undefined, imageDirectory: undefined,
+    help: { gatewayKey: undefined, database: undefined },
+  });
+  assert.deepEqual(deploymentConfig({ HOST: '0.0.0.0', INKLU_PUBLIC_DEMO: 'true' }), {
+    host: '0.0.0.0', publicDemo: true, publicOrigin: undefined,
+    lessonOrigins: undefined, imageDirectory: undefined,
+    help: { gatewayKey: undefined, database: undefined },
+  });
+  const onRender = deploymentConfig({ RENDER: 'true', RENDER_EXTERNAL_URL: 'https://inklu-companion.onrender.com/' });
+  assert.equal(onRender.host, '0.0.0.0');
+  assert.equal(onRender.publicDemo, true);
+  assert.equal(onRender.publicOrigin, 'https://inklu-companion.onrender.com');
+
+  assert.throws(() => deploymentConfig({ RENDER: 'true' }), /Configure the public HTTPS origin/);
+});
+
+test('public demo redirects root, serves judge lessons with help disabled, blocks help endpoint and allows same-origin requests', async t => {
+  const deployment = {
+    publicOrigin: 'https://demo.example.org',
+    publicDemo: true,
+  };
+  const { base, calls } = await start(t, undefined, undefined, deployment);
+  const headers = { Host: 'demo.example.org' };
+
+  async function send(path, method = 'GET', extra = {}, body) {
+    const req = request(base + path, { method, headers: { ...headers, ...extra } });
+    const incoming = once(req, 'response');
+    if (body !== undefined) req.write(body);
+    req.end();
+    const [res] = await incoming;
+    let text = '';
+    res.setEncoding('utf8');
+    for await (const chunk of res) text += chunk;
+    return { status: res.statusCode, headers: res.headers, text };
+  }
+
+  // Root redirect
+  const rootRes = await send('/');
+  assert.equal(rootRes.status, 302);
+  assert.equal(rootRes.headers.location, '/pages/concept-with-navigation.html');
+
+  // Judge lessons served with help-unavailable
+  const conceptRes = await send('/pages/concept-with-navigation.html');
+  assert.equal(conceptRes.status, 200);
+  assert.ok(conceptRes.text.includes('<alx-learning-companion help-unavailable'));
+
+  const genericRes = await send('/pages/generic-lesson.html');
+  assert.equal(genericRes.status, 200);
+  assert.ok(genericRes.text.includes('<alx-learning-companion help-unavailable'));
+
+  // Non-judge HTML page returns 404 in public demo
+  const nonJudgeRes = await send('/pages/homepage-v1-paced.html');
+  assert.equal(nonJudgeRes.status, 404);
+
+  // Help session endpoint returns 503
+  const helpRes = await send('/api/help/sessions', 'POST', { 'Content-Type': 'application/json' }, '{}');
+  assert.equal(helpRes.status, 503);
+  assert.deepEqual(JSON.parse(helpRes.text), { error: 'Human Help is unavailable in this public demo.' });
+
+  // Same-origin learning request succeeds
+  const apiRes = await send('/api/translate', 'POST',
+    { Origin: 'https://demo.example.org', 'Content-Type': 'application/json' },
+    JSON.stringify({ text: 'Check both time zones.' }));
+  assert.equal(apiRes.status, 200);
+  assert.deepEqual(JSON.parse(apiRes.text), { translation: amharic });
+  assert.equal(calls.length, 1);
+});
+
+

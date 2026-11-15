@@ -1,0 +1,22 @@
+services:
+  - type: web
+    name: inklu-companion
+    runtime: node
+    branch: integration/team
+    plan: free
+    autoDeployTrigger: "off"
+    buildCommand: npm ci --prefix backend
+    startCommand: npm start --prefix backend
+    healthCheckPath: /pages/generic-lesson.html
+    envVars:
+      - key: NODE_VERSION
+        value: "24.19.0"
+      - key: INKLU_PUBLIC_DEMO
+        value: "true"
+      - key: INKLU_TELEGRAM_ENABLED
+        value: "false"
+      - key: INKLU_TTS_ALLOWANCE_ETB
+        value: "0"
+      - key: ADDIS_API_KEY
+        sync: false
+

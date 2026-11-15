@@ -226,10 +226,14 @@
       const visuals = root.getElementById('visuals');
       visuals.hidden = action !== 'describe' || !visuals.childElementCount;
       root.getElementById('describe-images').hidden = action !== 'describe' || !this.images.some(image => image.asset);
-      root.getElementById('request-help').hidden = action !== 'help';
+      root.getElementById('request-help').hidden = action !== 'help' || this.hasAttribute('help-unavailable');
       note.hidden = true;
       reading.removeAttribute('aria-busy');
       if (action === 'help') {
+        if (this.hasAttribute('help-unavailable')) {
+          this.notify('Human Help is unavailable in this public demo.');
+          return;
+        }
         this.notify(this.outcomes.get(action) ?? (this.requests.has(action) ? 'Sending your help request…' :
           'Ask your LMS support team to follow up. Your screen stays private.'));
         return;

@@ -8,11 +8,12 @@ export { makeServer };
 
 if (process.argv[1] && pathToFileURL(resolve(process.argv[1])).href === import.meta.url) {
   const port = Number(process.env.PORT || 3000);
-  const server = makeServer(process.env.ADDIS_API_KEY?.trim() ? createClient() : null, undefined, undefined, deploymentConfig());
+  const deployment = deploymentConfig();
+  const server = makeServer(process.env.ADDIS_API_KEY?.trim() ? createClient() : null, undefined, undefined, deployment);
   server.on('error', () => { console.error('Could not start the translation server. Check PORT.'); process.exitCode = 1; });
-  server.listen(port, '127.0.0.1', async () => {
-    console.log('Savanna is available at http://127.0.0.1:' + server.address().port);
-    if (process.env.INKLU_TELEGRAM_ENABLED !== 'true') return;
+  server.listen(port, deployment.host, async () => {
+    console.log('Inklu listening on http://' + server.address().address + ':' + server.address().port);
+    if (deployment.publicDemo || process.env.INKLU_TELEGRAM_ENABLED !== 'true') return;
     const controller = new AbortController();
     server.once('close', () => controller.abort());
     try {
