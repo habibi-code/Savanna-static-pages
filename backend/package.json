@@ -11,6 +11,7 @@
     "poc": "node --env-file-if-exists=.env cli.js"
   },
   "dependencies": {
-    "addisai": "0.14.0"
+    "addisai": "0.14.0",
+    "express": "^5.3.0"
   }
 }

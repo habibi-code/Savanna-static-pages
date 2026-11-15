@@ -1,0 +1,128 @@
+[
+  {
+    "id": "job_available_jobs",
+    "title": "Available Jobs",
+    "company": "Savanna Remote Talent Network",
+    "location": "Remote (Global)",
+    "type": "Full-time & Part-time Remote",
+    "salary_range": "$1,000 - $3,000 / month",
+    "keywords": ["available", "jobs", "job", "career", "careers", "openings", "positions", "vacancies", "remote", "virtual", "assistant", "va", "roles"],
+    "description": "Explore available jobs with top employers hiring for remote Virtual Assistant roles across administrative, executive, and business support positions.",
+    "key_skills": [
+      "Remote Virtual Assistant task coordination",
+      "Executive calendar and inbox management",
+      "Digital communication and customer support",
+      "Asynchronous collaboration and time management"
+    ],
+    "citation": "Job Opportunities (backend/jobs-data.json - Available Jobs)",
+    "source_url": "/pages/homepage-v1-paced.html#careers"
+  },
+  {
+    "id": "job_interview_accommodations",
+    "title": "Interview Accommodations",
+    "company": "Savanna Inclusive Hiring Program",
+    "location": "Remote",
+    "type": "Accessibility & Accommodation Policy",
+    "salary_range": "N/A - Workplace Accessibility",
+    "keywords": ["interview", "accommodations", "accommodation", "extended", "time", "screen", "readers", "accessibility", "accessible", "disability", "assistive"],
+    "description": "Learn about available interview accommodations for applicants, including extended time on assessments and full compatibility with screen readers and assistive technology.",
+    "key_skills": [
+      "Extended time for technical evaluations and coding assessments",
+      "Full compatibility with screen readers (NVDA, JAWS, VoiceOver)",
+      "Accessible interview materials and live captions",
+      "Dedicated accessibility coordinator support"
+    ],
+    "citation": "Job Opportunities (backend/jobs-data.json - Interview Accommodations)",
+    "source_url": "/pages/homepage-v1-paced.html#accommodations"
+  },
+  {
+    "id": "job_remote_exec_va",
+    "title": "Remote Executive Virtual Assistant",
+    "company": "Nexus Global Technologies",
+    "location": "Remote (Worldwide / East Africa Friendly)",
+    "type": "Full-time / Part-time Remote",
+    "salary_range": "$1,200 - $2,500 / month",
+    "keywords": ["executive", "assistant", "nexus", "calendar", "inbox", "scheduling", "travel", "confidentiality"],
+    "description": "Looking for a detail-oriented Executive Virtual Assistant to manage executive calendars, travel arrangements, inbox zero triage, and confidential business correspondence.",
+    "key_skills": [
+      "Advanced Google Workspace & Microsoft 365 calendar management",
+      "Executive email drafting and meeting briefs",
+      "Cross-timezone scheduling and travel coordination",
+      "Confidential document preparation and minute taking"
+    ],
+    "citation": "Career and Job Opportunities (backend/jobs-data.json - Remote Executive Virtual Assistant)",
+    "source_url": "/pages/homepage-v1-paced.html#careers"
+  },
+  {
+    "id": "job_social_media_va",
+    "title": "Social Media & Content Coordinator VA",
+    "company": "Bloom Digital Agency",
+    "location": "Remote",
+    "type": "Contract Remote",
+    "salary_range": "$900 - $1,800 / month",
+    "keywords": ["social", "media", "bloom", "content", "canva", "buffer", "marketing", "instagram", "linkedin"],
+    "description": "Support our marketing team by scheduling multi-channel posts, monitoring comments, creating graphics in Canva, and compiling weekly analytics reports.",
+    "key_skills": [
+      "Buffer, Hootsuite, and Meta Business Suite scheduling",
+      "Canva design templates and visual branding",
+      "Community engagement and direct message responses",
+      "Basic metric tracking and reporting"
+    ],
+    "citation": "Career and Job Opportunities (backend/jobs-data.json - Social Media VA)",
+    "source_url": "/pages/homepage-v1-paced.html#careers"
+  },
+  {
+    "id": "job_customer_support_va",
+    "title": "E-commerce Customer Support Specialist",
+    "company": "Savanna Commerce Hub",
+    "location": "Remote (Flexible Shifts)",
+    "type": "Full-time Remote",
+    "salary_range": "$1,000 - $1,900 / month",
+    "keywords": ["customer", "support", "savanna", "ecommerce", "zendesk", "shopify", "tickets", "helpdesk"],
+    "description": "Provide empathetic, prompt customer support via email and live chat for Shopify-based international e-commerce stores.",
+    "key_skills": [
+      "Zendesk, Gorgias, and Shopify order management",
+      "Customer empathy and conflict resolution",
+      "Order tracking, refund processing, and escalation routing",
+      "Clear, professional written English communication"
+    ],
+    "citation": "Career and Job Opportunities (backend/jobs-data.json - Customer Support Specialist)",
+    "source_url": "/pages/homepage-v1-paced.html#careers"
+  },
+  {
+    "id": "job_ai_operations_va",
+    "title": "AI Operations & Workflow Assistant",
+    "company": "Aura Labs Inc.",
+    "location": "Remote",
+    "type": "Part-time / Full-time Remote",
+    "salary_range": "$1,500 - $3,000 / month",
+    "keywords": ["ai", "operations", "workflow", "aura", "automation", "zapier", "prompt", "notion"],
+    "description": "Help distributed teams automate repetitive processes using modern AI tools, Zapier automations, and Notion workspace databases.",
+    "key_skills": [
+      "Prompt engineering and generative AI tool integration",
+      "Zapier / Make.com workflow automations",
+      "Notion workspace setup and database curation",
+      "Document processing and AI-assisted data formatting"
+    ],
+    "citation": "Career and Job Opportunities (backend/jobs-data.json - AI Operations Assistant)",
+    "source_url": "/pages/homepage-v1-paced.html#careers"
+  },
+  {
+    "id": "job_data_research_va",
+    "title": "Data Research & Lead Generation Specialist",
+    "company": "Horizon Growth Partners",
+    "location": "Remote",
+    "type": "Contract Remote",
+    "salary_range": "$800 - $1,600 / month",
+    "keywords": ["data", "research", "lead", "generation", "horizon", "excel", "spreadsheets", "linkedin"],
+    "description": "Conduct online web research to identify prospective B2B clients, verify contact details, and maintain CRM spreadsheets with high accuracy.",
+    "key_skills": [
+      "Web research and LinkedIn Sales Navigator discovery",
+      "Spreadsheet management (Excel / Google Sheets formatting)",
+      "CRM data entry (HubSpot / Salesforce basics)",
+      "Data validation and duplicate cleanup"
+    ],
+    "citation": "Career and Job Opportunities (backend/jobs-data.json - Data Research Specialist)",
+    "source_url": "/pages/homepage-v1-paced.html#careers"
+  }
+]

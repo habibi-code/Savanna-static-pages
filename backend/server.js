@@ -8,6 +8,8 @@ import { createClient, translateEnglish, UserMessage } from './translation.js';
 import { automaticSpeech } from './automatic-speech.js';
 import { explainSimply } from './simplify.js';
 import { describeImage, loadLessonImage } from './visuals.js';
+import express from 'express';
+import aiTutorRouter from './ai-tutor.js';
 
 const maxBytes = 64 * 1024;
 class HttpError extends Error {
@@ -142,8 +144,17 @@ export function makeServer(client, directory = fileURLToPath(new URL('./output/'
   const speech = automaticSpeech(client, directory, allowance, process.env.INKLU_CACHED_VOICES);
   const limits = new Map([['/api/translate', 8], ['/api/simplify', 8], ['/api/describe', 8], ['/api/speech/listen', 8]]);
   const windows = new Map();
+  // Express app for mounting extra API routers (e.g., AI‑Tutor)
+  const apiApp = express();
+  apiApp.set('aiClient', client);
+  apiApp.use('/api', aiTutorRouter);
   return createServer({ requestTimeout: 15000, headersTimeout: 10000, connectionsCheckingInterval: 1000 }, async (req, res) => {
     const path = req.url.split('?')[0];
+    // Forward AI‑Tutor requests to the Express router
+    if (path.startsWith('/api/ai-tutor')) {
+      apiApp(req, res);
+      return;
+    }
     const isSpeech = path.startsWith('/api/speech/');
     try {
       res.setHeader('X-Content-Type-Options', 'nosniff');

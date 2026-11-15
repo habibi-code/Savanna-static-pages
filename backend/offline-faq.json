@@ -1,0 +1,54 @@
+[
+  {
+    "keywords": ["jobs", "available", "hiring", "work", "roles", "career"],
+    "answer": "Yes, there are remote jobs available for Virtual Assistants, including Customer Support and Social Media Managers. \n\nHere are the details:\n- **Roles:** Customer Support, AI Operator\n- **Flexibility:** Fully remote with flexible hours\n\n💡 **Analogy:** Think of a Virtual Assistant like a digital Swiss Army knife—equipped to handle many different remote tasks from anywhere in the world!"
+  },
+  {
+    "id": "faq_offline_status",
+    "question": "What happens when the tutor is offline or cloud connection is lost?",
+    "keywords": ["offline", "disconnected", "fallback", "cloud", "down", "internet", "connection", "fail", "pluggable", "status"],
+    "answer": "When the cloud AI service is offline, Inklu automatically switches to an offline emergency knowledge base.\n\nKey details:\n- **Instant fallback:** You can still access offline lesson summaries and common questions without interruption.\n- **Cached guidance:** Essential guidelines and FAQs remain stored locally.\n- **Automatic reconnection:** Once network connectivity restores, full live cloud capabilities resume automatically.\n\n💡 **Helpful Analogy:** Think of this like a smartphone's offline mode—you can still read your downloaded offline handbook even with no internet connection!",
+    "citation": "Offline FAQ (backend/offline-faq.json)",
+    "source_url": "offline://faq/status"
+  },
+  {
+    "id": "faq_inklu_overview",
+    "question": "What is the Inklu learning companion and how does it work?",
+    "keywords": ["inklu", "companion", "overview", "features", "support", "modes", "explore"],
+    "answer": "Inklu is an accessible learning companion designed to remove learning barriers.\n\nKey features:\n- **Explain Simply:** Breaks complex technical lessons down into plain language.\n- **Translate:** Translates reading passages into Amharic with synchronized voice playback.\n- **Describe Visuals:** Provides AI descriptions for course images and diagrams.\n- **Ask Tutor:** Offers a friendly, grounded AI tutor to answer questions about the current lesson.\n\n💡 **Helpful Analogy:** It's like having a patient personal tutor and accessibility guide sitting right beside you while you study!",
+    "citation": "Offline FAQ (backend/offline-faq.json)",
+    "source_url": "offline://faq/overview"
+  },
+  {
+    "id": "faq_excluded_retained",
+    "question": "What elements are excluded and retained during lesson extraction?",
+    "keywords": ["excluded", "retained", "filter", "tags", "elements", "nav", "buttons", "headings"],
+    "answer": "Inklu filters web pages so only actual lesson content is presented.\n\nSummary:\n- **Excluded:** Navigation menus, headers, footers, form inputs, buttons, script tags, and hidden elements.\n- **Retained:** Headings (h1-h6), paragraphs, bullet/numbered lists, quotations, and figure captions.\n\n💡 **Helpful Analogy:** Like reading mode in a browser, it strips out website chrome to leave only the clean lesson text.",
+    "citation": "Offline FAQ (backend/offline-faq.json)",
+    "source_url": "offline://faq/extraction"
+  },
+  {
+    "id": "faq_va_preparation",
+    "question": "How can I prepare for a remote Virtual Assistant career?",
+    "keywords": ["prepare", "virtual", "assistant", "va", "career", "skills", "remote", "tools", "work"],
+    "answer": "Preparing for a remote VA career requires developing both core digital skills and strong client communication.\n\nSteps to succeed:\n- **Master remote workplace tools:** Calendar management, Google Workspace, Slack, and email etiquette.\n- **Adopt AI productivity tools:** Learn to use AI tools for drafting, summarization, and task scheduling.\n- **Develop specialized strengths:** Specialize in customer support, project coordination, or social media.\n- **Practice proactive communication:** Provide regular updates, confirm time zones, and clarify requirements.\n\n💡 **Helpful Analogy:** Think of yourself as an air traffic controller for a busy entrepreneur—keeping schedules, tasks, and communications running smoothly!",
+    "citation": "Offline FAQ (backend/offline-faq.json)",
+    "source_url": "offline://faq/va-career"
+  },
+  {
+    "id": "faq_interview_accommodations",
+    "question": "What interview accommodations are provided during hiring?",
+    "keywords": ["interview", "accommodations", "accommodation", "extended", "time", "screen", "readers", "accessibility", "accessible"],
+    "answer": "We provide comprehensive interview accommodations to ensure full accessibility for all applicants.\n\nAvailable accommodations:\n- **Extended Time:** Extra time provided for assessments, technical tasks, and interview conversations.\n- **Screen Reader Compatibility:** Full support for screen readers including NVDA, JAWS, and VoiceOver.\n- **Accessible Formats:** Alternative formats for test instructions and interview questionnaires.\n- **Assistive Technology Support:** Dedicated coordinator assistance throughout the hiring process.\n\n💡 **Helpful Analogy:** Interview accommodations are like wheelchair ramps at a building entrance—they ensure every candidate has an equal, unobstructed pathway to demonstrate their skills!",
+    "citation": "Offline FAQ (backend/offline-faq.json)",
+    "source_url": "offline://faq/accommodations"
+  },
+  {
+    "id": "faq_hallucination",
+    "question": "How does Inklu prevent AI hallucinations?",
+    "keywords": ["hallucination", "guardrails", "grounding", "out-of-scope", "accuracy", "safe"],
+    "answer": "Inklu uses strict anti-hallucination guardrails to ensure responses are grounded in verified lesson materials.\n\nHow it works:\n- **Strict grounding:** The AI answers only using verified lesson chunks and job data.\n- **Relevance threshold:** If a question is unrelated or out of scope, the tutor gracefully declines rather than guessing.\n- **Direct citations:** Every grounded answer cites the exact source file used.\n\n💡 **Helpful Analogy:** A good librarian only answers from books currently on the shelf rather than making up stories!",
+    "citation": "Offline FAQ (backend/offline-faq.json)",
+    "source_url": "offline://faq/guardrails"
+  }
+]

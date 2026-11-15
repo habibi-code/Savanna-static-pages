@@ -56,6 +56,17 @@ async function setup(t, options = {}) {
       await options.waitExplanation;
       return route.fulfill({ json: { explanation: '# Compare calendars\nCheck the time zones.\n- Pick a time.\n- Confirm it.\n## Next steps\n1. Send the invite.' } });
     }
+    if (url.pathname === '/api/ai-tutor') {
+      await options.waitTutor;
+      if (options.tutorError) return route.fulfill({ status: options.tutorError, json: { error: 'Mock failure' } });
+      return route.fulfill({ json: options.tutorResult ?? {
+        answer: 'When Inklu extracts lesson material, it filters out interface elements so you can focus purely on learning.\n\n- Navigation menus\n- Form buttons\n\n💡 Analogy: Reader mode in a browser.',
+        citation: 'Lesson content (assets/learning-companion/lesson-content.js)',
+        source_url: origin + '/pages/concept-with-navigation.html',
+        audio: 'data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEARKwAAIhYAQACABAAZGF0YQAAAAA=',
+        audio_url: origin + '/api/ai-tutor/audio/mock-1'
+      } });
+    }
     assert.equal(url.pathname, '/api/speech/listen');
     if (options.speech) return options.speech(route);
     return route.fulfill({ contentType: 'audio/mpeg', body: mp3 });
@@ -600,4 +611,47 @@ test('narrow layout, enlarged type, long unbroken text, forced colors and reduce
   await button('Generate Audio for passage 1').press('Enter');
   await button('Pause passage 1').focus();
   assert(await button('Pause passage 1').evaluate(el => getComputedStyle(el).outlineStyle === 'solid'));
+});
+
+test('Ask Tutor provides inline chat interface with no browser prompt, displays loading states and renders AI explanation', async t => {
+  let promptCalled = false;
+  const { page, panel, launcher, button } = await setup(t, { path: '/tests/lesson-content.html' });
+  await page.exposeFunction('onPromptCalled', () => { promptCalled = true; });
+  await page.addInitScript(() => {
+    window.prompt = () => { window.onPromptCalled(); return 'unexpected prompt'; };
+  });
+
+  await launcher.click();
+  const tutorBtn = button('Ask Tutor');
+  await tutorBtn.waitFor();
+  await tutorBtn.click();
+
+  // Assert prompt was never called
+  assert.equal(promptCalled, false);
+
+  // Assert tutor interface is visible inside the shadow root
+  const tutorInterface = panel.locator('#tutor-interface');
+  await tutorInterface.waitFor({ state: 'visible' });
+
+  const input = panel.locator('#tutor-input');
+  const submit = panel.locator('#tutor-submit');
+  assert(await input.isVisible());
+  assert(await submit.isVisible());
+
+  // Type question and submit
+  await input.fill('What elements are excluded?');
+  await submit.click();
+
+  // Assert user message appears in chat
+  await panel.locator('.tutor-message.user-message').getByText('What elements are excluded?').waitFor();
+
+  // Assert AI response appears with explanation, citation and source link
+  await panel.locator('.tutor-message.ai-message').getByText(/filters out interface elements/i).waitFor();
+  assert(await panel.locator('.tutor-citation').getByText(/lesson-content\.js/i).isVisible());
+  assert(await panel.locator('.tutor-source').isVisible());
+
+  // Assert input was cleared and re-enabled
+  assert.equal(await input.inputValue(), '');
+  assert(await input.isEnabled());
+  assert.equal(promptCalled, false);
 });
