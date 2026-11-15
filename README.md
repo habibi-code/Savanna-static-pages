@@ -59,6 +59,9 @@ Everything else is inert.
 
 Module owners can find the shared Git baseline, proposed lesson identity fields
 and planned service endpoints in the [team integration contracts](docs/team-integration.md).
+**Human Help** in the drawer can request an LMS follow-up when its authenticated
+gateway is configured. The same Node process can serve Telegram's sample career menus.
+Installation, offline tests and service limits are in the [team service guide](docs/team-services.md).
 
 Open the floating **Inklu Companion** button on the lesson page. Its desktop drawer
 becomes a full-screen reader on small screens. Choose **Explain Simply** for a
@@ -68,7 +71,7 @@ distinct local PNG and a short excerpt of nearby lesson text to Addis AI. After 
 on the passage you want to hear. [Backend setup and testing instructions](backend/README.md#live-lesson-translation)
 
 To embed the companion, copy `assets/learning-companion/`, load `lesson-content.js`,
-`amharic-audio.js`, and `learning-companion.js` in order as classic scripts, and place `<alx-learning-companion></alx-learning-companion>`
+`amharic-audio.js`, `reading-actions.js`, `human-help.js`, and `learning-companion.js` in order as classic scripts, and place `<alx-learning-companion></alx-learning-companion>`
 at the desired location. The widget loads its neighboring stylesheet into its shadow root.
 The debug preview and Amharic translation both read the current lesson through the extractor.
 By default translation sends the title and body to the same-origin `POST /api/translate` endpoint.
@@ -78,11 +81,11 @@ generates one within the allowance configured on the server. See the
 
 ### Install on another lesson site
 
-1. Use Node.js 22.9 or later. From this repository run `npm.cmd ci --prefix backend`,
+1. Use Node.js 22.13 or later for the full backend. From this repository run `npm.cmd ci --prefix backend`,
    then `npm.cmd start --prefix backend`. Open the [standalone HTML lesson](http://127.0.0.1:3000/pages/generic-lesson.html?inkluDebug=1).
    Open Inklu and expand the debug preview to verify the title and reading order without a provider key.
    For live generation set `ADDIS_API_KEY` in the backend's ignored `.env` file and restart.
-2. Copy the companion directory to your site's public assets and load the three scripts
+2. Copy the companion directory to your site's public assets and load the five scripts
    in the order shown in [the example page](pages/generic-lesson.html). Keep the CSS next to
    `learning-companion.js`. No Savanna stylesheet or global application script is required.
 3. Place this element in persistent page markup. Set selectors before connecting it.
@@ -130,7 +133,7 @@ production UI hides this disclosure by default.
 
 1. Tab to **Inklu Companion** and press Enter or Space. The modal
    announces its name and current lesson. Initial focus is on **Close Inklu**.
-2. Tab through the three actions and use Enter or Space to choose one. Results
+2. Tab through the drawer actions and use Enter or Space to choose one. Results
    appear below the actions. While Explain Simply is loading, choose Describe Visuals.
    Check that completion is announced once and focus stays on Describe Visuals.
    Return to Explain Simply and Tab past the actions to the explanation. In NVDA

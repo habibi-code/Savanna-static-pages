@@ -1,4 +1,4 @@
-import { createClient, UserMessage } from './translation.js';
+import { createClient, UserMessage } from './shared/addis.js';
 import { createInterface } from 'node:readline/promises';
 import { fileURLToPath } from 'node:url';
 import { run, explain } from './poc.js';

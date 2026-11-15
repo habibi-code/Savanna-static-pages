@@ -2,7 +2,8 @@
 
 ## Live lesson translation
 
-Use Node.js 22.9 or later. Run these commands from the repository root in PowerShell:
+Use Node.js 22.13 or later for the full suite, including SQLite. The [team service guide](../docs/team-services.md)
+covers Human Help, Telegram and earlier Node 22 runtimes. Run these commands from the repository root in PowerShell:
 
 ```powershell
 cd backend

@@ -50,6 +50,11 @@ renders quoted text as text. Discard late answers after a lesson change.
 
 ## Human Help (Ermi)
 
+The integrated subset accepts an empty JSON object and derives the requester
+from the authenticated LMS gateway. Owner-only session lookup is implemented.
+Lesson-linked requests, status mutations and messages are future contracts.
+See the [service guide](team-services.md).
+
 | Operation | Contract |
 | --- | --- |
 | Request help | `POST /api/help/sessions` with `{lessonId, revision}` → `201 {sessionId, status:"pending"}` |
@@ -64,6 +69,9 @@ browser's capture picker. Provide a keyboard-accessible Stop sharing control and
 stop tracks when the learner stops, disconnects, or the session resolves.
 
 ## Telegram and Career (Barok)
+
+The optional Node polling module serves sample topics and roles. These HTTP contracts
+are still planned. The current menus do not subscribe users or collect requests.
 
 | Operation | Contract |
 | --- | --- |

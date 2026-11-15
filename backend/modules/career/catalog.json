@@ -1,0 +1,98 @@
+{
+  "languages": {
+    "English": "en",
+    "አማርኛ": "am",
+    "Afaan Oromoo": "om",
+    "ትግርኛ": "ti",
+    "Soomaali": "so",
+    "Afaraf": "aa"
+  },
+  "courses": {
+    "am": [
+      "ዲጂታል ማርኬቲንግ",
+      "የኮምፒውተር መሰረታዊ ክህሎት",
+      "የደንበኞች አገልግሎት",
+      "ግራፊክ ዲዛይን",
+      "ድህረ ገጽ ልማት"
+    ],
+    "om": [
+      "Marketing Dijitaalaa",
+      "Beekumsa Kompiitaraa Bu’uuraa",
+      "Tajaajila Maamila",
+      "Design Graafikaa",
+      "Misooma Web"
+    ],
+    "ti": [
+      "ዲጂታል ማርኬቲንግ",
+      "መሰረታዊ ክእለት ኮምፒዩተር",
+      "ተርእሶ ደንበኛ",
+      "ግራፊክ ዲዛይን",
+      "ምምዕባል ድሕረ ገጽ"
+    ],
+    "so": [
+      "Suuqgeynta Dhijitaalka ah",
+      "Xirfadaha Aasaasiga ah ee Kombuyuutarka",
+      "Adeegyada Macmiilka",
+      "Naqshadda Graafiga",
+      "Horumarinta Shabakada"
+    ],
+    "aa": [
+      "Marketing dijitalah",
+      "Kompiiterra aayro takkoy",
+      "Kren-hinnah tan",
+      "Graafik dizayn",
+      "Web abna"
+    ],
+    "en": [
+      "Digital Marketing",
+      "Basic Computer Skills",
+      "Customer Service",
+      "Graphic Design",
+      "Web Development"
+    ]
+  },
+  "jobs": {
+    "am": [
+      "የደንበኞች አገልግሎት ተቆጣጣሪ",
+      "የመረጃ ግቤት ሠራተኛ",
+      "የሽያጭ አማካሪ",
+      "የአስተዳደር አማካሪ",
+      "የዲጂታል ማርኬቲንግ አማካሪ"
+    ],
+    "om": [
+      "Bakka Bu'aa Tajaajila Maamila",
+      "Ogeessa Galmeessuu Deetaa",
+      "Gargaaraa Gurgurtaa",
+      "Gargaaraa Bulchiinsaa",
+      "Gargaaraa Marketing Dijitaalaa"
+    ],
+    "ti": [
+      "ተኸላላፊ ተርእሶ ደንበኛ",
+      "ሰራሕተኛ መዝገብ ሓበሬታ",
+      "ሓጋዚ ዕዳጋ",
+      "ሓጋዚ ምሕደራ",
+      "ሓጋዚ ዲጂታል ማርኬቲንግ"
+    ],
+    "so": [
+      "Wakiilka Adeegyada Macmiilka",
+      "Qoraha Gelinta Xogta",
+      "Kaaliyaha Iibka",
+      "Kaaliyaha Maamulka",
+      "Kaaliyaha Suuqgeynta Dhijitaalka ah"
+    ],
+    "aa": [
+      "Kren-hinnah tan",
+      "Data gelik tan",
+      "Gaddi tan",
+      "Maamul tan",
+      "Marketing dijital tan"
+    ],
+    "en": [
+      "Customer Service Representative",
+      "Data Entry Clerk",
+      "Sales Assistant",
+      "Administrative Assistant",
+      "Digital Marketing Assistant"
+    ]
+  }
+}

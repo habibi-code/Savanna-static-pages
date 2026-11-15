@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { once } from 'node:events';
-import { mkdir } from 'node:fs/promises';
+import { mkdir, readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { after, before, test } from 'node:test';
 import { chromium } from 'playwright-core';
@@ -68,7 +68,31 @@ async function setup(t, options = {}) {
   return { page, calls, launcher, button, panel: page.getByRole('dialog', { name: 'Inklu' }) };
 }
 
-test('generic host scopes extraction and routes all four actions to the configured API base', async t => {
+test('Savanna and generic lessons mount one drawer, including the older three-script embed', async t => {
+  const { page, launcher, panel, calls } = await setup(t);
+  for (const path of ['/pages/concept-with-navigation.html', '/pages/generic-lesson.html']) {
+    if (path.includes('generic')) {
+      await page.route(origin + path, async route => {
+        const original = await readFile(new URL('../../pages/generic-lesson.html', import.meta.url), 'utf8');
+        const legacy = original.replace(/<script[^>]+(?:reading-actions|human-help)\.js"><\/script>/g, '');
+        await route.fulfill({ contentType: 'text/html; charset=utf-8', body: legacy });
+      });
+      await page.goto(origin + path, {waitUntil: 'domcontentloaded'});
+    }
+    await launcher.waitFor();
+    assert.equal(await page.locator('alx-learning-companion').count(), 1);
+    assert.equal(await launcher.count(), 1);
+    await launcher.press('Enter');
+    const title = await panel.locator('#lesson-title').innerText();
+    assert.ok(title.trim() && title !== 'Lesson unavailable');
+    await page.getByRole('button', {name: 'Human Help', exact: true}).press('Enter');
+    await panel.getByRole('button', {name: 'Request human help'}).waitFor();
+    await page.keyboard.press('Escape');
+  }
+  assert.deepEqual(calls, []);
+});
+
+test('generic host scopes extraction and routes all four learning APIs to the configured API base', async t => {
   const { page, panel, launcher, button, calls } = await setup(t, { path: '/pages/generic-lesson.html?inkluDebug=1' });
   const api = 'https://inklu.example.test/lms/api/';
   const received = [];
@@ -131,7 +155,7 @@ test('keyboard launcher, modal focus, mode navigation, escape and no layout shif
   await page.keyboard.press('Tab');
   assert(await button('Close Inklu').evaluate(el => el.matches(':focus')));
   assert.equal(await button('Listen').count(), 0);
-  for (const name of ['Explain Simply', 'Translate', 'Describe Visuals']) {
+  for (const name of ['Explain Simply', 'Translate', 'Human Help', 'Describe Visuals']) {
     await page.keyboard.press('Tab');
     assert(await button(name).evaluate(el => el.matches(':focus')));
   }
@@ -142,6 +166,49 @@ test('keyboard launcher, modal focus, mode navigation, escape and no layout shif
   assert.deepEqual(calls, []);
   await page.keyboard.press('Escape');
   await panel.waitFor({ state: 'hidden' });
+  assert(await launcher.evaluate(el => el.matches(':focus')));
+});
+
+test('human help requires an explicit request, keeps keyboard focus and never starts capture', async t => {
+  const { page, launcher, panel, button } = await setup(t);
+  await page.evaluate(() => {
+    window.captureRequests = 0;
+    navigator.mediaDevices.getDisplayMedia = () => { window.captureRequests++; throw new Error('Unexpected capture'); };
+  });
+  let count = 0, release;
+  const gate = new Promise(resolve => { release = resolve; });
+  await page.locator('alx-learning-companion').evaluate(el =>
+    el.setAttribute('api-base', 'https://ai.example.test/api/'));
+  await page.route('**/api/help/sessions', async route => {
+    assert.equal(new URL(route.request().url()).origin, origin);
+    assert.equal(route.request().method(), 'POST');
+    assert.deepEqual(route.request().postDataJSON(), {});
+    if (++count === 1) {
+      await gate;
+      return route.fulfill({ status: 503, json: {} });
+    }
+    return route.fulfill({ status: 201, json: { sessionId: 'test-session', status: 'pending' } });
+  });
+  await launcher.press('Enter');
+  await button('Human Help').press('Enter');
+  const request = button('Request human help');
+  const status = panel.locator('#translation-status');
+  assert.equal(count, 0);
+  await request.press('Enter');
+  await request.press('Enter');
+  assert.equal(await request.getAttribute('aria-busy'), 'true');
+  assert(await request.evaluate(el => el.matches(':focus')));
+  release();
+  await panel.locator('#reading-note').filter({hasText: 'Try again'}).waitFor();
+  assert.equal(count, 1);
+  await request.press('Enter');
+  await panel.locator('#reading-note').filter({hasText: 'was submitted'}).waitFor();
+  assert.match(await status.textContent(), /help request was submitted/);
+  assert.equal(await request.getAttribute('aria-busy'), null);
+  await request.press('Enter');
+  assert.equal(count, 2);
+  assert.equal(await page.evaluate(() => window.captureRequests), 0);
+  await page.keyboard.press('Escape');
   assert(await launcher.evaluate(el => el.matches(':focus')));
 });
 
@@ -321,7 +388,7 @@ test('completed explanation is a keyboard-reachable reading document with one sh
   assert.deepEqual(await doc.getByRole('list').evaluateAll(lists => lists.map(list => list.localName)), ['ul', 'ol']);
   await button('Describe Visuals').press('Enter');
   await explain.press('Enter');
-  for (let i = 0; i < 3; i++) await page.keyboard.press('Tab');
+  for (let i = 0; i < 4; i++) await page.keyboard.press('Tab');
   assert(await doc.evaluate(el => el.matches(':focus')));
   await page.keyboard.press('Escape');
   assert(await launcher.evaluate(el => el.matches(':focus')));

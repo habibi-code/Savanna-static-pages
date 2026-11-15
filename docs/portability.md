@@ -31,7 +31,9 @@ allow the widget's scripts and stylesheet, the API in `connect-src`, and `blob:`
 
 - Put the service behind TLS and an authenticated LMS gateway. Host/Origin checks
   constrain browser use; non-browser clients can omit Origin. The Node service has
-  no learner identity, authorization, tenant isolation or per-learner quotas.
+  no per-learner quotas or tenant isolation. Human Help uses gateway-authenticated
+  subjects and restricts ticket reads to their owners. The learning routes still
+  require access control at the gateway.
 - Request limits and text/image caches are per process. The speech allowance covers
   estimated speech costs only. Other paid operations need a deployment spending policy.
 - Persist the audio directory, MP3s and reservation ledger on storage with suitable
