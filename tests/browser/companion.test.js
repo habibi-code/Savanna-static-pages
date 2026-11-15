@@ -48,6 +48,7 @@ async function setup(t, options = {}) {
     calls.push([url.pathname, route.request().postDataJSON()]);
     if (url.pathname === '/api/describe' && options.vision) return options.vision(route);
     if (url.pathname === '/api/translate') {
+      if (options.translate) return options.translate(route, route.request().postDataJSON());
       await options.waitTranslation;
       if (options.translationError) return route.fulfill({ status: options.translationError, json: { error: 'Mock failure' } });
       return route.fulfill({ json: { translation: options.text ?? sample } });
@@ -667,4 +668,136 @@ test('narrow layout, enlarged type, long unbroken text, forced colors and reduce
   await button('Generate Audio for passage 1').press('Enter');
   await button('Pause passage 1').focus();
   assert(await button('Pause passage 1').evaluate(el => getComputedStyle(el).outlineStyle === 'solid'));
+});
+
+test('multilingual translation supports keyboard language selection, Afaan Oromo and Tigrinya rendering without audio controls, and preserves Amharic audio caching', async t => {
+  const oromoText = 'Gargaartonni vaarchuwaalii namootaa fi dhaabbilee toora interneetiitiin deggaru.\n\nMeeshaaleen haaraan imeelii barreessuuf gargaaru.';
+  const tigrinyaText = 'ቨርቹዋል ሓገዝቲ ንሰባትን ትካላትን ብኢንተርነት ይድግፉ።\n\nሓደሽቲ መሳርሒታት ኢመይል ንምጽሓፍ ይሕግዙ።';
+  const { page, launcher, panel, button, calls } = await setup(t, {
+    translate(route, post) {
+      if (post.targetLanguage === 'om') return route.fulfill({ json: { translation: oromoText, sourceLanguage: 'en', targetLanguage: 'om' } });
+      if (post.targetLanguage === 'ti') return route.fulfill({ json: { translation: tigrinyaText, sourceLanguage: 'en', targetLanguage: 'ti' } });
+      return route.fulfill({ json: { translation: sample, sourceLanguage: 'en', targetLanguage: 'am' } });
+    }
+  });
+
+  await launcher.click();
+  await button('Translate').click();
+
+  // Initial Amharic translation
+  const firstAudio = button('Generate Audio for passage 1');
+  await firstAudio.waitFor();
+  assert.equal(await panel.locator('#current-language').textContent(), 'Selected language: አማርኛ');
+  assert.equal(await panel.locator('.passage p[lang="am"]').count(), 4);
+
+  // Switch to Afaan Oromo using radio selector
+  const oromoRadio = panel.getByRole('radio', { name: 'Afaan Oromoo' });
+  await oromoRadio.focus();
+  await oromoRadio.press('Space');
+  assert.equal(await panel.locator('#current-language').textContent(), 'Selected language: Afaan Oromoo');
+  await panel.locator('#reading-note').filter({ hasText: 'Selected Afaan Oromoo. Choose Translate to translate the lesson.' }).waitFor();
+
+  // Press Translate lesson
+  const translateLesson = button('Translate lesson');
+  await translateLesson.click();
+  await panel.locator('.passage[lang="om"]').first().waitFor();
+  assert.equal(await panel.locator('.passage[lang="om"]').count(), 2);
+  // Afaan Oromo passages have text only, NO audio controls
+  assert.equal(await panel.locator('[data-passage]').count(), 0);
+  assert.equal(await panel.locator('.passage-text-only').count(), 2);
+
+  // Keyboard navigation across radio group to Tigrinya
+  const tigrinyaRadio = panel.getByRole('radio', { name: 'ትግርኛ' });
+  await tigrinyaRadio.focus();
+  await tigrinyaRadio.press('Space');
+  assert.equal(await panel.locator('#current-language').textContent(), 'Selected language: ትግርኛ');
+  await translateLesson.click();
+  await panel.locator('.passage[lang="ti"]').first().waitFor();
+  assert.equal(await panel.locator('.passage[lang="ti"]').count(), 2);
+  // Tigrinya has NO audio controls
+  assert.equal(await panel.locator('[data-passage]').count(), 0);
+
+  // Switch back to Amharic - verify cached Amharic translation is restored instantly without re-fetching
+  const amharicRadio = panel.getByRole('radio', { name: 'አማርኛ' });
+  const translateCallsBefore = calls.filter(([path]) => path === '/api/translate').length;
+  await amharicRadio.click();
+  assert.equal(await panel.locator('#current-language').textContent(), 'Selected language: አማርኛ');
+  // Amharic passages restored immediately
+  await panel.locator('.passage p[lang="am"]').first().waitFor();
+  assert.equal(await panel.locator('.passage p[lang="am"]').count(), 4);
+  // Audio controls restored for Amharic
+  assert.equal(await panel.locator('[data-passage]').count(), 4);
+  // No new translate call was made
+  assert.equal(calls.filter(([path]) => path === '/api/translate').length, translateCallsBefore);
+
+  // Verify Amharic audio still works from cache
+  await firstAudio.press('Enter');
+  await panel.getByText('Playing', { exact: true }).waitFor();
+  assert.deepEqual(calls.at(-1), ['/api/speech/listen', { text: sample.split('\n\n')[0] }]);
+});
+
+test('multilingual translation on generic lesson with headings, lists, and language attributes', async t => {
+  const { page, launcher, panel, button, calls } = await setup(t, {
+    path: '/pages/generic-lesson.html',
+    translate(route, post) {
+      assert.equal(post.sourceLanguage, 'en');
+      assert.equal(post.targetLanguage, 'om');
+      return route.fulfill({ json: { translation: '# Mata-duree\nKun keeyyata.\n- Qabxii tokkoffaa\n- Qabxii lammaffaa\n## Mata-duree xiqqaa\nIbsa dabalataa.', sourceLanguage: 'en', targetLanguage: 'om' } });
+    }
+  });
+
+  await page.locator('alx-learning-companion').evaluate(el => {
+    el.setAttribute('target-language', 'om');
+  });
+
+  await launcher.click();
+  assert.equal(await panel.locator('#current-language').textContent(), 'Selected language: Afaan Oromoo');
+  await button('Translate').click();
+
+  await panel.locator('.passage[lang="om"]').first().waitFor();
+  // Check headings and lists are rendered within the passage-body
+  assert(await panel.locator('.passage-body h4').isVisible());
+  assert(await panel.locator('.passage-body h5').isVisible());
+  assert.equal(await panel.locator('.passage-body li').count(), 2);
+  assert.equal(await panel.locator('[data-passage]').count(), 0);
+  assert.equal(calls.filter(([p]) => p === '/api/translate').length, 1);
+  assert.deepEqual(calls.find(([p]) => p === '/api/translate')[1].targetLanguage, 'om');
+});
+
+test('stale or out-of-order translation responses do not overwrite current language selection', async t => {
+  let resolveOromo;
+  const oromoGate = new Promise(r => { resolveOromo = r; });
+  const { page, launcher, panel, button } = await setup(t, {
+    async translate(route, post) {
+      if (post.targetLanguage === 'om') {
+        await oromoGate;
+        return route.fulfill({ json: { translation: 'Keeyyata Afaan Oromoo', sourceLanguage: 'en', targetLanguage: 'om' } });
+      }
+      return route.fulfill({ json: { translation: 'ትሕዝቶ ትግርኛ', sourceLanguage: 'en', targetLanguage: 'ti' } });
+    }
+  });
+
+  await launcher.click();
+  await button('Translate').click();
+
+  // Switch to Afaan Oromo and click Translate lesson (this request is stalled on oromoGate)
+  await panel.getByRole('radio', { name: 'Afaan Oromoo' }).click();
+  await button('Translate lesson').click();
+
+  // While Oromo request is pending, user changes mind and switches to Tigrinya
+  await panel.getByRole('radio', { name: 'ትግርኛ' }).click();
+  await button('Translate lesson').click();
+
+  // Tigrinya resolves first
+  await panel.getByText('ትሕዝቶ ትግርኛ').waitFor();
+  assert.equal(await panel.locator('#current-language').textContent(), 'Selected language: ትግርኛ');
+
+  // Now resolve the older Oromo request
+  resolveOromo();
+  await page.waitForTimeout(100);
+
+  // The older Oromo response must NOT have overwritten Tigrinya!
+  assert.equal(await panel.getByText('ትሕዝቶ ትግርኛ').isVisible(), true);
+  assert.equal(await panel.locator('.passage[lang="om"]').count(), 0);
+  assert.equal(await panel.locator('#current-language').textContent(), 'Selected language: ትግርኛ');
 });

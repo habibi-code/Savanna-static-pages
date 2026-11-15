@@ -359,4 +359,108 @@ test('public demo redirects root, serves judge lessons with help disabled, block
   assert.equal(calls.length, 1);
 });
 
+test('multilingual translation supports en, am, om, and ti with language-specific caching and backward compatibility', async t => {
+  const translations = {
+    'en:am': 'ሁለቱንም የሰዓት ሰቆች ያረጋግጡ።',
+    'en:om': 'Zooniiwwan yeroo lamaan mirkaneessaa.',
+    'en:ti': 'ክልቲኦም ናይ ግዜ ዞባታት ኣረጋግጹ።',
+  };
+  const { post, url, calls } = await start(t, async ({ text, from, to }) => ({
+    text: translations[`${from}:${to}`] || 'Translated text',
+  }));
+
+  // 1. Backward-compatible request without sourceLanguage/targetLanguage
+  const defaultRes = await post('Check both time zones.');
+  assert.equal(defaultRes.status, 200);
+  assert.deepEqual(await defaultRes.json(), { translation: translations['en:am'] });
+  assert.deepEqual(calls.at(-1), { text: 'Check both time zones.', from: 'en', to: 'am' });
+
+  // 2. Explicit English to Amharic
+  const amRes = await fetch(url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ text: 'Check both time zones.', sourceLanguage: 'en', targetLanguage: 'am' }),
+  });
+  assert.equal(amRes.status, 200);
+  assert.deepEqual(await amRes.json(), {
+    translation: translations['en:am'],
+    sourceLanguage: 'en',
+    targetLanguage: 'am',
+  });
+
+  // 3. English to Afaan Oromo
+  const omRes = await fetch(url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ text: 'Check both time zones.', sourceLanguage: 'en', targetLanguage: 'om' }),
+  });
+  assert.equal(omRes.status, 200);
+  assert.deepEqual(await omRes.json(), {
+    translation: translations['en:om'],
+    sourceLanguage: 'en',
+    targetLanguage: 'om',
+  });
+  assert.deepEqual(calls.at(-1), { text: 'Check both time zones.', from: 'en', to: 'om' });
+
+  // 4. English to Tigrinya
+  const tiRes = await fetch(url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ text: 'Check both time zones.', sourceLanguage: 'en', targetLanguage: 'ti' }),
+  });
+  assert.equal(tiRes.status, 200);
+  assert.deepEqual(await tiRes.json(), {
+    translation: translations['en:ti'],
+    sourceLanguage: 'en',
+    targetLanguage: 'ti',
+  });
+  assert.deepEqual(calls.at(-1), { text: 'Check both time zones.', from: 'en', to: 'ti' });
+
+  // 5. Language-specific cache hit: Repeating Afaan Oromo does not invoke provider again
+  const callsBeforeRepeat = calls.length;
+  const omRepeat = await fetch(url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ text: 'Check both time zones.', sourceLanguage: 'en', targetLanguage: 'om' }),
+  });
+  assert.equal(omRepeat.status, 200);
+  assert.equal(calls.length, callsBeforeRepeat);
+});
+
+test('multilingual translation rejects unsupported languages, identical language pairs, and unexpected keys', async t => {
+  const { url, calls } = await start(t);
+
+  // Reject unsupported languages (e.g. Somali, Arabic)
+  for (const [src, tgt] of [['en', 'so'], ['en', 'ar']]) {
+    const res = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ text: 'Check time.', sourceLanguage: src, targetLanguage: tgt }),
+    });
+    assert.equal(res.status, 400);
+    assert.deepEqual(await res.json(), { error: 'Unsupported language.' });
+  }
+
+  // Reject identical source and target languages
+  for (const lang of ['en', 'am', 'om']) {
+    const res = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ text: 'Check time.', sourceLanguage: lang, targetLanguage: lang }),
+    });
+    assert.equal(res.status, 400);
+    assert.deepEqual(await res.json(), { error: 'Source and target languages must differ.' });
+  }
+
+  // Reject unexpected properties
+  const extraRes = await fetch(url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ text: 'Check time.', provider: 'custom', targetLanguage: 'am' }),
+  });
+  assert.equal(extraRes.status, 400);
+  assert.equal(calls.length, 0);
+});
+
+
 

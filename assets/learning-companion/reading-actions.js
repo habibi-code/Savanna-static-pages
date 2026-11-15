@@ -75,13 +75,64 @@
     }
   }
 
-  function loadingMessage(action) {
-    return action === 'translate' ? 'Translating the lesson into Amharic…' : 'Preparing a simple explanation…';
+  const LANGUAGE_NAMES = {
+    am: 'Amharic',
+    om: 'Afaan Oromoo',
+    ti: 'Tigrinya',
+    en: 'English',
+  };
+
+  const NATIVE_NAMES = {
+    am: 'አማርኛ',
+    om: 'Afaan Oromoo',
+    ti: 'ትግርኛ',
+    en: 'English',
+  };
+
+  function loadingMessage(action, targetLanguage = 'am') {
+    if (action !== 'translate') return 'Preparing a simple explanation…';
+    const name = LANGUAGE_NAMES[targetLanguage] || 'selected language';
+    return 'Translating the lesson into ' + name + '…';
   }
 
-  async function requestText(companion, action) {
+  function renderTranslation(companion, targetLanguage = 'am') {
+    const text = companion.translations?.get(targetLanguage);
+    if (!text) return false;
+    const root = companion.shadowRoot;
+    if (targetLanguage === 'am' && companion.speech) {
+      companion.speech.setTranslation(text);
+    } else {
+      companion.speech?.deactivate();
+      const passages = text.split(/\n\n+/u).map(p => p.trim()).filter(Boolean);
+      const container = root.getElementById('translation');
+      container.replaceChildren(...passages.map((passage, index) => {
+        const card = document.createElement('li');
+        card.className = 'passage passage-text-only';
+        card.lang = targetLanguage;
+        card.dir = 'auto';
+        const label = document.createElement('span');
+        label.className = 'passage-label';
+        label.textContent = 'Passage ' + String(index + 1).padStart(2, '0');
+        card.append(label);
+        const body = document.createElement('div');
+        body.className = 'passage-body';
+        renderExplanation(body, passage, 3);
+        card.append(body);
+        return card;
+      }));
+    }
+    const name = LANGUAGE_NAMES[targetLanguage] || targetLanguage;
+    const message = targetLanguage === 'am' ? 'Amharic translation ready.' : name + ' translation ready.';
+    companion.outcomes.set('translate', message);
+    companion.notify(message, companion.active === 'translate');
+    return true;
+  }
+
+  async function requestText(companion, action, targetLanguage, sourceLanguage) {
     const root = companion.shadowRoot;
     const translating = action === 'translate';
+    const target = translating ? (targetLanguage || companion.targetLanguage || 'am') : undefined;
+    const source = translating ? (sourceLanguage || companion.sourceLanguage || 'en') : undefined;
     const subject = translating ? 'Translation' : 'Explanation';
     if (!companion.source) {
       companion.notify(translating ? 'No lesson text is available to translate.' : 'No lesson text is available to explain.');
@@ -95,13 +146,16 @@
     companion.requests.set(action, controller);
     const reading = root.getElementById('reading');
     reading.setAttribute('aria-busy', 'true');
-    companion.notify(loadingMessage(action));
+    companion.notify(loadingMessage(action, target));
     const timer = setTimeout(() => controller.abort(), 90000);
     let message;
     try {
+      const requestBody = translating
+        ? { text: companion.source, sourceLanguage: source, targetLanguage: target }
+        : { text: companion.source };
       const response = await fetch(companion.apiUrl(action), {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ text: companion.source }), signal: controller.signal, redirect: 'error',
+        body: JSON.stringify(requestBody), signal: controller.signal, redirect: 'error',
       });
       if (!response.ok) {
         const messages = {
@@ -115,24 +169,19 @@
       }
       const result = await response.json();
       if (companion.requests.get(action) !== controller) return;
+      if (translating && companion.targetLanguage !== target) return;
       const text = translating ? result.translation : result.explanation;
       if (typeof text !== 'string' || !text.trim()) throw new Error();
       if (translating) {
-        if (companion.speech) companion.speech.setTranslation(text);
-        else {
-          for (const paragraph of text.split(/\n+/u)) {
-            const item = document.createElement('li');
-            item.lang = 'am';
-            item.textContent = paragraph;
-            root.getElementById('translation').append(item);
-          }
-        }
+        companion.translations?.set(target, text);
+        renderTranslation(companion, target);
       } else {
         const explanation = root.getElementById('explanation');
         renderExplanation(explanation, text);
         explanation.hidden = companion.active !== action;
       }
-      message = translating ? 'Amharic translation ready.' : 'Simple explanation ready.';
+      const name = LANGUAGE_NAMES[target] || target;
+      message = translating ? (target === 'am' ? 'Amharic translation ready.' : name + ' translation ready.') : 'Simple explanation ready.';
       companion.outcomes.set(action, message);
     } catch {
       message = controller.signal.aborted ? subject + ' timed out. You can try again.' :
@@ -149,5 +198,5 @@
     }
   }
 
-  window.InkluReadingActions = { describeImages, loadingMessage, requestText };
+  window.InkluReadingActions = { describeImages, loadingMessage, requestText, renderTranslation, LANGUAGE_NAMES, NATIVE_NAMES };
 })();

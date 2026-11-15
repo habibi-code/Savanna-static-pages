@@ -4,7 +4,7 @@
   if (customElements.get('alx-learning-companion')) return;
 
   const stylesheet = new URL('learning-companion.css', document.currentScript.src).href;
-  const headings = { simplify: 'Simple explanation', translate: 'Amharic translation',
+  const headings = { simplify: 'Simple explanation', translate: 'Translation',
     describe: 'Visual descriptions', help: 'Human Help' };
 
   function lessonText(extracted) {
@@ -50,6 +50,33 @@
               <p id="reading-note" hidden></p>
               <button type="button" id="request-help" hidden>Request human help</button>
               <div id="explanation" role="document" aria-labelledby="reading-title" tabindex="0" lang="en" hidden></div>
+              <div id="translation-controls" hidden>
+                <fieldset class="language-selector" role="radiogroup" aria-label="Target language">
+                  <legend class="selector-label">Translate to</legend>
+                  <div class="language-options">
+                    <label class="lang-option active">
+                      <input type="radio" name="inklu-target-language" value="am" checked>
+                      <span>አማርኛ</span>
+                    </label>
+                    <label class="lang-option">
+                      <input type="radio" name="inklu-target-language" value="om">
+                      <span>Afaan Oromoo</span>
+                    </label>
+                    <label class="lang-option">
+                      <input type="radio" name="inklu-target-language" value="ti">
+                      <span>ትግርኛ</span>
+                    </label>
+                    <label class="lang-option">
+                      <input type="radio" name="inklu-target-language" value="en">
+                      <span>English</span>
+                    </label>
+                  </div>
+                </fieldset>
+                <div class="translate-action-row">
+                  <button type="button" id="translate-button" aria-label="Translate lesson">Translate</button>
+                  <p id="current-language" class="selected-language-display" aria-live="polite">Selected language: አማርኛ</p>
+                </div>
+              </div>
               <ol id="translation" aria-label="Translated passages" hidden></ol>
               <button type="button" id="describe-images" aria-controls="visuals" hidden>Describe images</button>
               <div id="visuals" role="document" aria-labelledby="reading-title" tabindex="0" lang="en" hidden></div>
@@ -75,8 +102,20 @@
       const panel = root.getElementById('panel');
       const details = root.querySelector('details');
       details.hidden = new URLSearchParams(location.search).get('inkluDebug') !== '1';
+      this._targetLanguage = 'am';
+      this.sourceLanguage = 'en';
+      this.translations = new Map();
       this.requests = new Map();
       this.outcomes = new Map();
+      const translationControls = root.getElementById('translation-controls');
+      translationControls.addEventListener('change', (e) => {
+        if (e.target.name === 'inklu-target-language') {
+          this.setTargetLanguage(e.target.value, true);
+        }
+      });
+      root.getElementById('translate-button').addEventListener('click', () => {
+        window.InkluReadingActions.requestText(this, 'translate', this.targetLanguage, this.sourceLanguage);
+      });
       root.getElementById('request-help').addEventListener('click', () => window.InkluHumanHelp.requestHumanHelp(this));
       root.getElementById('describe-images').addEventListener('click', () => window.InkluReadingActions.describeImages(this));
       for (const button of root.querySelectorAll('.actions button')) {
@@ -143,7 +182,58 @@
       return base.href;
     }
 
+    setTargetLanguage(lang, userInitiated = true) {
+      if (!['en', 'am', 'om', 'ti'].includes(lang)) return;
+      this._targetLanguage = lang;
+      const root = this.shadowRoot;
+      if (root) {
+        for (const label of root.querySelectorAll('.lang-option')) {
+          const radio = label.querySelector('input');
+          const isCurrent = radio?.value === lang;
+          if (radio && radio.checked !== isCurrent) radio.checked = isCurrent;
+          label.classList.toggle('active', isCurrent);
+        }
+        const optText = window.InkluReadingActions?.NATIVE_NAMES[lang] || lang;
+        const currentDisplay = root.getElementById('current-language');
+        if (currentDisplay) currentDisplay.textContent = 'Selected language: ' + optText;
+        if (userInitiated) {
+          if (this.translations.has(lang)) {
+            window.InkluReadingActions?.renderTranslation(this, lang);
+          } else {
+            this.speech?.deactivate();
+            root.getElementById('translation').replaceChildren();
+            this.notify('Selected ' + optText + '. Choose Translate to translate the lesson.');
+          }
+        }
+      }
+    }
+
+    get targetLanguage() {
+      return this._targetLanguage || 'am';
+    }
+
+    set targetLanguage(lang) {
+      this.setTargetLanguage(lang, false);
+    }
+
+    static get observedAttributes() {
+      return ['target-language', 'source-language'];
+    }
+
+    attributeChangedCallback(name, oldValue, newValue) {
+      if (oldValue === newValue) return;
+      if (name === 'target-language' && newValue) {
+        this.setTargetLanguage(newValue, false);
+      }
+      if (name === 'source-language' && newValue) {
+        this.sourceLanguage = newValue;
+      }
+    }
+
     connectedCallback() {
+      this.sourceLanguage = this.getAttribute('source-language') || 'en';
+      const target = this.getAttribute('target-language') || 'am';
+      this.setTargetLanguage(target, false);
       this.hostConfig = window.InkluLessonContent?.hostFor(this);
       this.watchLesson();
     }
@@ -182,7 +272,13 @@
       for (const request of this.requests.values()) request.abort();
       this.requests.clear();
       this.outcomes.clear();
+      this.translations?.clear();
+      this.setTargetLanguage(this.getAttribute('target-language') || 'am', false);
       const root = this.shadowRoot;
+      if (root) {
+        const controls = root.getElementById('translation-controls');
+        if (controls) controls.hidden = true;
+      }
       if (root.getElementById('reading').contains(root.activeElement)) {
         root.querySelector('.actions [aria-pressed="true"]')?.focus();
       }
@@ -221,6 +317,8 @@
       }
       reading.hidden = false;
       root.getElementById('reading-title').textContent = headings[action];
+      const translationControls = root.getElementById('translation-controls');
+      if (translationControls) translationControls.hidden = action !== 'translate';
       passages.hidden = action !== 'translate';
       root.getElementById('explanation').hidden = action !== 'simplify' || !this.outcomes.has('simplify');
       const visuals = root.getElementById('visuals');
@@ -246,6 +344,20 @@
         else if (!this.images.length) this.notify('This lesson has no images to describe.');
         else if (!this.images.some(image => image.asset)) this.notify('This lesson has no supported local images.');
         else this.notify('Generate AI descriptions for the images in this lesson.');
+        return;
+      }
+      if (action === 'translate') {
+        if (this.requests.has('translate')) {
+          reading.setAttribute('aria-busy', 'true');
+          this.notify(window.InkluReadingActions.loadingMessage('translate', this.targetLanguage));
+          return;
+        }
+        if (this.translations?.has(this.targetLanguage)) {
+          window.InkluReadingActions.renderTranslation(this, this.targetLanguage);
+          this.notify('', false);
+          return;
+        }
+        window.InkluReadingActions.requestText(this, 'translate', this.targetLanguage, this.sourceLanguage);
         return;
       }
       if (this.requests.has(action)) {
