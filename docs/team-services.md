@@ -17,6 +17,13 @@ npm.cmd ci --prefix backend
 npm.cmd start --prefix backend
 ```
 
+Alternatively, run containerized with Docker Compose:
+
+```bash
+docker compose up --build
+```
+
+
 The default listener is `127.0.0.1:3000`. Open the
 [Savanna lesson](http://127.0.0.1:3000/pages/concept-with-navigation.html?inkluDebug=1)
 and the [generic lesson](http://127.0.0.1:3000/pages/generic-lesson.html?inkluDebug=1).

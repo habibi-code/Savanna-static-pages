@@ -1,0 +1,23 @@
+services:
+  inklu:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: inklu-companion
+    ports:
+      - "3000:3000"
+    environment:
+      - PORT=3000
+      - HOST=0.0.0.0
+      - INKLU_PUBLIC_DEMO=${INKLU_PUBLIC_DEMO:-true}
+      - INKLU_TELEGRAM_ENABLED=${INKLU_TELEGRAM_ENABLED:-false}
+      - INKLU_TTS_ALLOWANCE_ETB=${INKLU_TTS_ALLOWANCE_ETB:-0}
+      - ADDIS_API_KEY=${ADDIS_API_KEY:-}
+      - INKLU_PUBLIC_ORIGIN=${INKLU_PUBLIC_ORIGIN:-}
+    volumes:
+      - inklu-audio:/app/backend/output
+    restart: unless-stopped
+
+volumes:
+  inklu-audio:
+    name: inklu-audio-data

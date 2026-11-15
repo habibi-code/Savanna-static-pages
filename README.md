@@ -79,6 +79,22 @@ After translation, choose **Generate Audio** on a passage. Inklu plays a saved c
 generates one within the allowance configured on the server. See the
 [speech controls and testing guide](backend/README.md#amharic-audio).
 
+### Docker setup
+
+To build and start Inklu with one command:
+
+```bash
+docker compose up --build
+```
+
+The containerized service listens on `http://localhost:3000` (`0.0.0.0` internally). In public demo mode (`INKLU_PUBLIC_DEMO=true`), navigating to `/` redirects to the Savanna concept lesson, Human Help requests are disabled, and only judge-approved lessons are served. Generated audio clips and the speech reservation ledger persist across restarts in the `inklu-audio-data` volume.
+
+To pass your Addis AI API key for live learning features:
+
+```bash
+ADDIS_API_KEY="your-key" docker compose up --build
+```
+
 ### Install on another lesson site
 
 1. Use Node.js 22.13 or later for the full backend. From this repository run `npm.cmd ci --prefix backend`,
