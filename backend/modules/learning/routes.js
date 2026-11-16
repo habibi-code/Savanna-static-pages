@@ -7,21 +7,29 @@ import { describeImage, loadLessonImage } from '../../visuals.js';
 import { cachedResult } from '../../shared/cache.js';
 import { readJson, readText, HttpError, json } from '../../middleware/http.js';
 
-const sectionLimit = 1500; // UTF-16 code units, consistent with the request limit.
+const DEFAULT_SECTION_LIMIT = 1500; // UTF-16 code units, consistent with the request limit.
+const LANGUAGE_SECTION_LIMITS = {
+  om: 600,
+  ti: 600,
+};
 
-function* sections(text) {
-  while (text.length > sectionLimit) {
+export function getSectionLimit(targetLanguage) {
+  return LANGUAGE_SECTION_LIMITS[targetLanguage] ?? DEFAULT_SECTION_LIMIT;
+}
+
+export function* sections(text, limit = DEFAULT_SECTION_LIMIT) {
+  while (text.length > limit) {
     let paragraph, sentence, word;
     for (const gap of text.matchAll(/\s+/gu)) {
-      if (gap.index > sectionLimit) break;
+      if (gap.index > limit) break;
       word = gap;
       // Prefer complete blocks and sentences in the last third of the budget.
-      if (gap.index < sectionLimit * 2 / 3) continue;
+      if (gap.index < limit * 2 / 3) continue;
       if (gap[0].includes('\n')) paragraph = gap;
       else if (/[.!?]["'”’»)\]]*$/u.test(text.slice(0, gap.index))) sentence = gap;
     }
     const boundary = paragraph ?? sentence ?? word;
-    let end = boundary?.index ?? sectionLimit;
+    let end = boundary?.index ?? limit;
     if (!boundary && /[\uD800-\uDBFF]/u.test(text[end - 1])) end--;
     const separator = boundary?.[0] ?? '';
     yield { text: text.slice(0, end), separator };
@@ -97,7 +105,8 @@ export function learningRoutes(client, directory, allowance, deployment) {
         }
         if (!client) throw new HttpError(503, 'Service is not configured.');
         const results = [];
-        const parts = [...sections(text)];
+        const limit = getSectionLimit(to);
+        const parts = [...sections(text, limit)];
         for (const [index, section] of parts.entries()) {
           if (res.destroyed) return;
           const key = `${from}:${to}:${section.text}`;

@@ -462,5 +462,127 @@ test('multilingual translation rejects unsupported languages, identical language
   assert.equal(calls.length, 0);
 });
 
+test('long Afaan Oromo lesson uses smaller 600-character chunks at sentence and paragraph boundaries and reassembles correctly', async t => {
+  const paragraphs = Array.from({ length: 14 }, (_, i) =>
+    `Kutaa ${i + 1}. The savanna ecosystem features distinct wet and dry seasons. Grasses thrive here while trees are widely spaced to survive prolonged periods of drought. Animals adapt to these seasonal shifts in vegetation and water availability.`
+  );
+  const lesson = paragraphs.join('\n\n');
+  assert.ok(lesson.length > 3000);
+
+  const { url, calls } = await start(t, async ({ text, from, to }) => {
+    assert.equal(from, 'en');
+    assert.equal(to, 'om');
+    assert.ok(text.length <= 600, `Chunk length ${text.length} exceeded 600 limit`);
+    return { text: 'Hiikkaa: ' + text.slice(0, 30) };
+  });
+
+  const res = await fetch(url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ text: lesson, sourceLanguage: 'en', targetLanguage: 'om' }),
+  });
+
+  assert.equal(res.status, 200);
+  const data = await res.json();
+  assert.equal(data.sourceLanguage, 'en');
+  assert.equal(data.targetLanguage, 'om');
+  assert.ok(calls.length > 5, 'Should have split long lesson into multiple smaller chunks');
+
+  for (const call of calls) {
+    assert.ok(call.text.length <= 600);
+    assert.equal(call.text, call.text.trim());
+  }
+
+  const { url: amUrl, calls: amCalls } = await start(t, async ({ text, from, to }) => {
+    assert.equal(from, 'en');
+    assert.equal(to, 'am');
+    assert.ok(text.length <= 1500, `Chunk length ${text.length} exceeded 1500 limit`);
+    return { text: 'ትርጉም ክፍል' };
+  });
+
+  const amRes = await fetch(amUrl, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ text: lesson, sourceLanguage: 'en', targetLanguage: 'am' }),
+  });
+  assert.equal(amRes.status, 200);
+  assert.ok(amCalls.length < calls.length, 'Amharic with 1500 limit should produce fewer chunks than Oromo with 600 limit');
+});
+
+test('Afaan Oromo partial failure recovery reuses cached chunk results on retry and completes translation', async t => {
+  const p1 = 'Paragraph one explains savanna climate and seasonal weather cycles. '.repeat(7).trimEnd();
+  const p2 = 'Paragraph two details wildlife migrations across the grassland plains. '.repeat(7).trimEnd();
+  const p3 = 'Paragraph three covers conservation efforts and ecosystem protections. '.repeat(7).trimEnd();
+  const lesson = `${p1}\n\n${p2}\n\n${p3}`;
+
+  let shouldFailP3 = true;
+  const { url, calls } = await start(t, async ({ text, from, to }) => {
+    assert.equal(from, 'en');
+    assert.equal(to, 'om');
+    if (shouldFailP3 && text.includes('conservation')) {
+      throw new Error('Temporary provider gateway timeout');
+    }
+    return { text: 'Hiikkaa Oromoo: ' + text.slice(0, 20) };
+  });
+
+  const firstRes = await fetch(url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ text: lesson, sourceLanguage: 'en', targetLanguage: 'om' }),
+  });
+  assert.equal(firstRes.status, 502);
+
+  const callsOnFirstAttempt = calls.length;
+  assert.ok(callsOnFirstAttempt >= 3, 'First attempt should have processed up to failing chunk');
+
+  shouldFailP3 = false;
+  const secondRes = await fetch(url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ text: lesson, sourceLanguage: 'en', targetLanguage: 'om' }),
+  });
+  assert.equal(secondRes.status, 200);
+  const data = await secondRes.json();
+  assert.equal(data.targetLanguage, 'om');
+  assert.ok(data.translation.includes('Hiikkaa Oromoo'));
+
+  const callsOnSecondAttempt = calls.length - callsOnFirstAttempt;
+  assert.ok(callsOnSecondAttempt < callsOnFirstAttempt, 'Retry should reuse cached chunks without re-requesting');
+});
+
+test('Afaan Oromo chunk SDK timeout yields 504 and logs safe diagnostic without leaking payload', async t => {
+  const warnings = t.mock.method(console, 'warn', () => {});
+  const secretText = 'Secret learner note about wildlife migrations.';
+  const sdk = new AddisAI({
+    apiKey: 'offline-test',
+    maxRetries: 0,
+    logLevel: 'off',
+    fetch: async () => {
+      throw new DOMException('Request timed out after 20000ms', 'TimeoutError');
+    },
+  });
+
+  const { url } = await start(t, (input, options) => sdk.translate.create(input, options));
+
+  const res = await fetch(url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ text: secretText, sourceLanguage: 'en', targetLanguage: 'om' }),
+  });
+
+  assert.equal(res.status, 504);
+  assert.deepEqual(await res.json(), { error: 'Translation timed out.' });
+
+  assert.equal(warnings.mock.callCount(), 1);
+  const warningText = warnings.mock.calls[0].arguments[0];
+  assert.ok(!warningText.includes(secretText), 'Diagnostic log must not leak lesson text');
+  const logged = JSON.parse(warningText);
+  assert.equal(logged.event, 'translation_section_failed');
+  assert.equal(logged.errorType, 'sdk_timeout');
+  assert.equal(logged.sectionIndex, 1);
+  assert.equal(logged.sectionCount, 1);
+  assert.equal(logged.characterCount, secretText.length);
+});
+
 
 

@@ -2,7 +2,7 @@
   'use strict';
 
   function renderExplanation(output, text, parentLevel = 3) {
-    let list;
+    let list = null;
     for (const raw of text.split(/\r?\n/u)) {
       const line = raw.trim();
       if (!line) { list = null; continue; }
@@ -11,18 +11,28 @@
         const tag = /^\d/u.test(item[1]) ? 'ol' : 'ul';
         if (list?.localName !== tag) {
           list = document.createElement(tag);
+          list.className = 'passage-list';
           if (tag === 'ol') list.start = parseInt(item[1], 10);
           output.append(list);
         }
         const li = document.createElement('li');
-        li.textContent = item[2];
+        li.textContent = item[2].trim();
         list.append(li);
       } else {
         list = null;
-        const heading = /^(#{1,6})\s+(.+)/u.exec(line);
-        const block = document.createElement(heading ? 'h' + Math.min(6, parentLevel + heading[1].length) : 'p');
-        block.textContent = heading ? heading[2] : line;
-        output.append(block);
+        const heading = /^(#{1,6})\s*(.+?)(?:\s*#+)?$/u.exec(line);
+        if (heading) {
+          const level = Math.min(6, parentLevel + heading[1].length);
+          const block = document.createElement('h' + level);
+          block.className = level <= 4 ? 'passage-heading' : 'passage-subheading';
+          block.textContent = heading[2].trim();
+          output.append(block);
+        } else {
+          const block = document.createElement('p');
+          block.className = 'passage-paragraph';
+          block.textContent = line.replace(/^#{1,6}\s*/u, '').trim();
+          output.append(block);
+        }
       }
     }
   }
@@ -77,54 +87,137 @@
 
   const LANGUAGE_NAMES = {
     am: 'Amharic',
-    om: 'Afaan Oromoo',
+    om: 'Afaan Oromo',
     ti: 'Tigrinya',
-    en: 'English',
+    en: 'English (Original lesson)',
   };
 
-  const NATIVE_NAMES = {
-    am: 'አማርኛ',
-    om: 'Afaan Oromoo',
-    ti: 'ትግርኛ',
-    en: 'English',
-  };
+  const NATIVE_NAMES = LANGUAGE_NAMES;
 
   function loadingMessage(action, targetLanguage = 'am') {
     if (action !== 'translate') return 'Preparing a simple explanation…';
     const name = LANGUAGE_NAMES[targetLanguage] || 'selected language';
-    return 'Translating the lesson into ' + name + '…';
+    return 'Translating the lesson into ' + name + '… Long lessons may take a few minutes.';
   }
 
-  function renderTranslation(companion, targetLanguage = 'am') {
-    const text = companion.translations?.get(targetLanguage);
-    if (!text) return false;
-    const root = companion.shadowRoot;
-    if (targetLanguage === 'am' && companion.speech) {
-      companion.speech.setTranslation(text);
-    } else {
-      companion.speech?.deactivate();
-      const passages = text.split(/\n\n+/u).map(p => p.trim()).filter(Boolean);
-      const container = root.getElementById('translation');
-      container.replaceChildren(...passages.map((passage, index) => {
+  function renderSemanticSections(container, text, companion, targetLanguage = 'am', isEnglish = false) {
+    container.setAttribute('lang', targetLanguage);
+    container.setAttribute('dir', isEnglish ? 'ltr' : 'auto');
+
+    const sections = companion?.sections || [];
+
+    // Case 1: English (original lesson) with structured sections available
+    if (isEnglish && sections.length > 0) {
+      container.replaceChildren(...sections.map((section, sIndex) => {
         const card = document.createElement('li');
-        card.className = 'passage passage-text-only';
-        card.lang = targetLanguage;
-        card.dir = 'auto';
+        card.className = 'passage passage-text-only passage-original';
+        card.lang = 'en';
+        card.dir = 'ltr';
+
+        const headerRow = document.createElement('div');
+        headerRow.className = 'passage-header-row';
         const label = document.createElement('span');
         label.className = 'passage-label';
-        label.textContent = 'Passage ' + String(index + 1).padStart(2, '0');
-        card.append(label);
+        label.textContent = 'Section ' + String(sIndex + 1).padStart(2, '0');
+        headerRow.append(label);
+        card.append(headerRow);
+
         const body = document.createElement('div');
         body.className = 'passage-body';
-        renderExplanation(body, passage, 3);
+
+        for (const block of section.blocks) {
+          if (block.type === 'heading') {
+            const h = document.createElement('h4');
+            h.className = 'passage-heading';
+            h.textContent = block.text;
+            body.append(h);
+          } else if (block.type === 'subheading') {
+            const h = document.createElement('h5');
+            h.className = 'passage-subheading';
+            h.textContent = block.text;
+            body.append(h);
+          } else if (block.type === 'list') {
+            const tag = block.listType === 'ol' ? 'ol' : 'ul';
+            const list = document.createElement(tag);
+            list.className = 'passage-list';
+            if (tag === 'ol' && block.start) list.start = block.start;
+            for (const item of block.items) {
+              const li = document.createElement('li');
+              li.textContent = item;
+              list.append(li);
+            }
+            body.append(list);
+          } else if (block.type === 'blockquote') {
+            const bq = document.createElement('blockquote');
+            bq.className = 'passage-quote';
+            bq.textContent = block.text;
+            body.append(bq);
+          } else {
+            const p = document.createElement('p');
+            p.className = 'passage-paragraph';
+            p.textContent = block.text;
+            body.append(p);
+          }
+        }
         card.append(body);
         return card;
       }));
+      return;
+    }
+
+    // Case 2: Translated or unsectioned text
+    let rawPassages = text.split(/\n\n+/u).map(p => p.trim()).filter(Boolean);
+
+    container.replaceChildren(...rawPassages.map((passage, index) => {
+      const card = document.createElement('li');
+      card.className = isEnglish ? 'passage passage-text-only passage-original' : 'passage passage-text-only';
+      card.lang = targetLanguage;
+      card.dir = isEnglish ? 'ltr' : 'auto';
+
+      const headerRow = document.createElement('div');
+      headerRow.className = 'passage-header-row';
+      const label = document.createElement('span');
+      label.className = 'passage-label';
+      label.textContent = (isEnglish ? 'Section ' : 'Passage ') + String(index + 1).padStart(2, '0');
+      headerRow.append(label);
+      card.append(headerRow);
+
+      const body = document.createElement('div');
+      body.className = 'passage-body';
+
+      renderExplanation(body, passage, 3);
+
+      card.append(body);
+      return card;
+    }));
+  }
+
+  function renderTranslation(companion, targetLanguage = 'am') {
+    const isEnglish = targetLanguage === 'en';
+    const text = companion.translations?.get(targetLanguage) || (isEnglish ? companion.source : null);
+    if (!text) return false;
+    const root = companion.shadowRoot;
+    const container = root.getElementById('translation');
+    if (targetLanguage === 'am' && companion.speech) {
+      container.setAttribute('lang', 'am');
+      container.setAttribute('dir', 'auto');
+      companion.speech.setTranslation(text);
+    } else {
+      companion.speech?.deactivate();
+      renderSemanticSections(container, text, companion, targetLanguage, isEnglish);
     }
     const name = LANGUAGE_NAMES[targetLanguage] || targetLanguage;
-    const message = targetLanguage === 'am' ? 'Amharic translation ready.' : name + ' translation ready.';
+    const message = isEnglish ? 'Viewing original English lesson.' : (name + ' translation ready.');
     companion.outcomes.set('translate', message);
     companion.notify(message, companion.active === 'translate');
+    const cur = root.getElementById('current-language');
+    if (cur) cur.textContent = isEnglish ? 'Viewing original English lesson' : 'Translation ready: ' + name;
+    const skipBtn = root.getElementById('skip-to-content');
+    if (skipBtn) skipBtn.hidden = false;
+    const reading = root.getElementById('reading');
+    reading?.scrollTo?.({ top: 0, behavior: 'instant' });
+    const workspace = root.querySelector('.workspace');
+    workspace?.scrollTo?.({ top: 0, behavior: 'instant' });
     return true;
   }
 
@@ -138,6 +231,11 @@
       companion.notify(translating ? 'No lesson text is available to translate.' : 'No lesson text is available to explain.');
       return;
     }
+    if (translating && target === 'en') {
+      companion.translations?.set('en', companion.source);
+      renderTranslation(companion, 'en');
+      return;
+    }
     if (!['http:', 'https:'].includes(location.protocol)) {
       companion.notify('Open this lesson over HTTP or HTTPS to use this action.');
       return;
@@ -146,8 +244,37 @@
     companion.requests.set(action, controller);
     const reading = root.getElementById('reading');
     reading.setAttribute('aria-busy', 'true');
+    const btn = root.getElementById('translate-button');
+    const targetName = LANGUAGE_NAMES[target] || target;
+    if (translating && btn) {
+      btn.setAttribute('aria-busy', 'true');
+      const btnLabel = btn.querySelector('.btn-label') || btn;
+      btnLabel.textContent = 'Translating into ' + targetName + '…';
+    }
+    const cur = root.getElementById('current-language');
+    if (translating && cur) {
+      cur.textContent = 'Translating into ' + targetName + '… Long lessons may take a few minutes.';
+    }
+    const skipBtn = root.getElementById('skip-to-content');
+    if (skipBtn) skipBtn.hidden = true;
+    if (translating) {
+      const container = root.getElementById('translation');
+      if (container) {
+        container.replaceChildren();
+        const loadingCard = document.createElement('li');
+        loadingCard.className = 'passage passage-loading';
+        loadingCard.setAttribute('role', 'status');
+        loadingCard.innerHTML = `
+          <div class="loading-spinner" aria-hidden="true">
+            <svg class="spin-icon" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><circle cx="12" cy="12" r="10" stroke-opacity="0.25"/><path d="M12 2a10 10 0 0 1 10 10"/></svg>
+          </div>
+          <h4 class="loading-title">Translating lesson into ${targetName}</h4>
+          <p class="loading-desc">Translating with Addis AI. Long lessons may take a few minutes. Please wait…</p>`;
+        container.append(loadingCard);
+      }
+    }
     companion.notify(loadingMessage(action, target));
-    const timer = setTimeout(() => controller.abort(), 90000);
+    const timer = setTimeout(() => controller.abort(), 180000);
     let message;
     try {
       const requestBody = translating
@@ -188,15 +315,39 @@
         subject + ' failed. You can try again.';
     } finally {
       clearTimeout(timer);
+      if (translating && btn) {
+        btn.removeAttribute('aria-busy');
+        const currentTarget = companion.targetLanguage;
+        const currentName = LANGUAGE_NAMES[currentTarget] || currentTarget;
+        const btnLabel = btn.querySelector('.btn-label') || btn;
+        btnLabel.textContent = currentTarget === 'en' ? 'View original lesson' : 'Translate into ' + currentName;
+      }
       if (companion.requests.get(action) === controller) {
         companion.requests.delete(action);
         if (companion.active === action) reading.removeAttribute('aria-busy');
         const readingThis = companion.active === action;
         if (readingThis && companion.outcomes.has(action)) root.getElementById('reading-note').hidden = true;
         companion.notify(message, readingThis && !companion.outcomes.has(action));
+        if (translating && !companion.outcomes.has(action)) {
+          if (cur && message) cur.textContent = message;
+          const container = root.getElementById('translation');
+          if (container && container.querySelector('.passage-loading')) {
+            container.replaceChildren();
+            const retryCard = document.createElement('li');
+            retryCard.className = 'passage passage-error';
+            const title = document.createElement('h4');
+            title.className = 'error-title';
+            title.textContent = 'Translation incomplete';
+            const desc = document.createElement('p');
+            desc.className = 'error-desc';
+            desc.textContent = message || 'Translation failed. You can try again.';
+            retryCard.append(title, desc);
+            container.append(retryCard);
+          }
+        }
       }
     }
   }
 
-  window.InkluReadingActions = { describeImages, loadingMessage, requestText, renderTranslation, LANGUAGE_NAMES, NATIVE_NAMES };
+  window.InkluReadingActions = { describeImages, loadingMessage, requestText, renderTranslation, renderSemanticSections, LANGUAGE_NAMES, NATIVE_NAMES };
 })();

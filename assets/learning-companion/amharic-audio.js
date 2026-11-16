@@ -75,13 +75,41 @@
       this.container.replaceChildren(...parts.map((part, index) => {
         const card = document.createElement('li');
         card.className = 'passage';
-        card.innerHTML = '<span class="passage-label"></span><p lang="am" dir="auto"></p><button type="button" data-passage></button>';
-        card.firstElementChild.textContent = 'Passage ' + String(index + 1).padStart(2, '0');
-        card.querySelector('p').textContent = part;
-        const button = card.querySelector('button');
-        button.textContent = 'Generate Audio';
+        card.setAttribute('lang', 'am');
+        card.setAttribute('dir', 'auto');
+        const label = document.createElement('span');
+        label.className = 'passage-label';
+        label.textContent = 'Passage ' + String(index + 1).padStart(2, '0');
+        card.append(label);
+
+        const trimmed = part.trim();
+        const headingMatch = /^(#{1,6})\s*(.+?)(?:\s*#+)?$/u.exec(trimmed);
+        const cleanText = headingMatch ? headingMatch[2].trim() : trimmed.replace(/^#{1,6}\s*/u, '').trim();
+
+        if (headingMatch) {
+          const level = Math.min(6, 3 + headingMatch[1].length);
+          const heading = document.createElement('h' + level);
+          heading.className = level <= 4 ? 'passage-heading' : 'passage-subheading';
+          heading.setAttribute('lang', 'am');
+          heading.setAttribute('dir', 'auto');
+          heading.textContent = cleanText;
+          card.append(heading);
+        }
+
+        const p = document.createElement('p');
+        p.setAttribute('lang', 'am');
+        p.setAttribute('dir', 'auto');
+        p.className = 'passage-paragraph';
+        p.textContent = cleanText;
+        card.append(p);
+
+        const button = document.createElement('button');
+        button.type = 'button';
         button.dataset.passage = String(index + 1);
+        button.textContent = 'Generate Audio';
         button.setAttribute('aria-label', 'Generate Audio for passage ' + (index + 1));
+        card.append(button);
+
         return card;
       }));
     }

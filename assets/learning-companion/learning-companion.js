@@ -9,6 +9,31 @@
 
   function lessonText(extracted) {
     if (!extracted) return '';
+    if (extracted.sections?.length) {
+      const parts = extracted.sections.map(section => {
+        const lines = [];
+        for (const block of section.blocks) {
+          if (block.type === 'heading') {
+            lines.push('# ' + block.text);
+          } else if (block.type === 'subheading') {
+            lines.push('## ' + block.text);
+          } else if (block.type === 'list') {
+            const prefix = block.listType === 'ol' ? (i => `${(block.start || 1) + i}. `) : (() => '- ');
+            for (let i = 0; i < block.items.length; i++) {
+              lines.push(prefix(i) + block.items[i]);
+            }
+          } else if (block.type === 'paragraph' || block.type === 'blockquote' || block.type === 'caption') {
+            lines.push(block.text);
+          }
+        }
+        return lines.join('\n');
+      });
+      const body = parts.filter(Boolean).join('\n\n');
+      if (extracted.title && !body.startsWith('# ' + extracted.title) && !body.startsWith('## ' + extracted.title)) {
+        return [extracted.title, body].filter(Boolean).join('\n\n');
+      }
+      return body;
+    }
     // Serialize only the extractor's detached fragment. Preserve inline words and block breaks.
     const walker = document.createTreeWalker(extracted.content, NodeFilter.SHOW_TEXT);
     while (walker.nextNode()) walker.currentNode.data = walker.currentNode.data.replace(/\s+/gu, ' ');
@@ -16,7 +41,7 @@
       block.before('\n');
       block.after('\n');
     }
-    const body = extracted.content.textContent.split('\n').map(line => line.trim()).filter(Boolean).join('\n');
+    const body = extracted.content.textContent.split('\n').map(line => line.trim()).filter(Boolean).join('\n\n');
     return body ? [extracted.title, body].filter(Boolean).join('\n\n') : '';
   }
 
@@ -50,31 +75,33 @@
               <p id="reading-note" hidden></p>
               <button type="button" id="request-help" hidden>Request human help</button>
               <div id="explanation" role="document" aria-labelledby="reading-title" tabindex="0" lang="en" hidden></div>
-              <div id="translation-controls" hidden>
-                <fieldset class="language-selector" role="radiogroup" aria-label="Target language">
-                  <legend class="selector-label">Translate to</legend>
-                  <div class="language-options">
-                    <label class="lang-option active">
-                      <input type="radio" name="inklu-target-language" value="am" checked>
-                      <span>አማርኛ</span>
-                    </label>
-                    <label class="lang-option">
-                      <input type="radio" name="inklu-target-language" value="om">
-                      <span>Afaan Oromoo</span>
-                    </label>
-                    <label class="lang-option">
-                      <input type="radio" name="inklu-target-language" value="ti">
-                      <span>ትግርኛ</span>
-                    </label>
-                    <label class="lang-option">
-                      <input type="radio" name="inklu-target-language" value="en">
-                      <span>English</span>
-                    </label>
+              <div id="translation-controls" class="translation-controls" hidden>
+                <div class="translation-picker-card">
+                  <div class="picker-header">
+                    <label for="target-language" class="picker-label">Translate lesson to</label>
+                    <span id="current-language-badge" class="current-lang-pill" aria-hidden="true">Amharic</span>
                   </div>
-                </fieldset>
-                <div class="translate-action-row">
-                  <button type="button" id="translate-button" aria-label="Translate lesson">Translate</button>
-                  <p id="current-language" class="selected-language-display" aria-live="polite">Selected language: አማርኛ</p>
+                  <div class="select-container">
+                    <select id="target-language" class="language-dropdown" aria-label="Target language">
+                      <option value="am" selected>Amharic</option>
+                      <option value="om">Afaan Oromo</option>
+                      <option value="ti">Tigrinya</option>
+                      <option value="en">English (Original lesson)</option>
+                    </select>
+                    <span class="dropdown-chevron" aria-hidden="true">
+                      <svg width="12" height="8" viewBox="0 0 12 8" fill="none"><path d="M1.5 1.75L6 6.25L10.5 1.75" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                    </span>
+                  </div>
+                  <button type="button" id="translate-button" class="primary-translate-btn" aria-label="Translate lesson">
+                    <span class="btn-icon" aria-hidden="true">
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m5 8 6 6"/><path d="m4 14 6-6 2-3"/><path d="M2 5h12"/><path d="M7 2h1"/><path d="m22 22-5-10-5 10"/><path d="M14 18h6"/></svg>
+                    </span>
+                    <span class="btn-label">Translate into Amharic</span>
+                  </button>
+                  <button type="button" id="skip-to-content" class="skip-content-btn" hidden>
+                    Skip to translated content
+                  </button>
+                  <p id="current-language" class="status-message" aria-live="polite">Selected language: Amharic</p>
                 </div>
               </div>
               <ol id="translation" aria-label="Translated passages" hidden></ol>
@@ -107,14 +134,25 @@
       this.translations = new Map();
       this.requests = new Map();
       this.outcomes = new Map();
-      const translationControls = root.getElementById('translation-controls');
-      translationControls.addEventListener('change', (e) => {
-        if (e.target.name === 'inklu-target-language') {
-          this.setTargetLanguage(e.target.value, true);
-        }
+      const languageSelect = root.getElementById('target-language');
+      languageSelect.addEventListener('change', () => {
+        this.setTargetLanguage(languageSelect.value, true);
       });
       root.getElementById('translate-button').addEventListener('click', () => {
-        window.InkluReadingActions.requestText(this, 'translate', this.targetLanguage, this.sourceLanguage);
+        if (this.targetLanguage === 'en') {
+          this.translations.set('en', this.source);
+          window.InkluReadingActions.renderTranslation(this, 'en');
+        } else {
+          window.InkluReadingActions.requestText(this, 'translate', this.targetLanguage, this.sourceLanguage);
+        }
+      });
+      root.getElementById('skip-to-content')?.addEventListener('click', () => {
+        const container = root.getElementById('translation');
+        const target = container.querySelector('.passage-heading, .passage-subheading, p[lang], .passage');
+        if (target) {
+          target.setAttribute('tabindex', '-1');
+          target.focus({ preventScroll: false });
+        }
       });
       root.getElementById('request-help').addEventListener('click', () => window.InkluHumanHelp.requestHumanHelp(this));
       root.getElementById('describe-images').addEventListener('click', () => window.InkluReadingActions.describeImages(this));
@@ -187,22 +225,65 @@
       this._targetLanguage = lang;
       const root = this.shadowRoot;
       if (root) {
-        for (const label of root.querySelectorAll('.lang-option')) {
-          const radio = label.querySelector('input');
-          const isCurrent = radio?.value === lang;
-          if (radio && radio.checked !== isCurrent) radio.checked = isCurrent;
-          label.classList.toggle('active', isCurrent);
-        }
-        const optText = window.InkluReadingActions?.NATIVE_NAMES[lang] || lang;
-        const currentDisplay = root.getElementById('current-language');
-        if (currentDisplay) currentDisplay.textContent = 'Selected language: ' + optText;
-        if (userInitiated) {
-          if (this.translations.has(lang)) {
-            window.InkluReadingActions?.renderTranslation(this, lang);
+        const select = root.getElementById('target-language');
+        if (select && select.value !== lang) select.value = lang;
+        const displayName = window.InkluReadingActions?.LANGUAGE_NAMES[lang] || lang;
+        const badge = root.getElementById('current-language-badge');
+        if (badge) badge.textContent = displayName;
+        const btn = root.getElementById('translate-button');
+        const btnLabel = btn?.querySelector('.btn-label') || btn;
+        if (btnLabel) {
+          if (lang === 'en') {
+            btnLabel.textContent = 'View original lesson';
+            btn?.setAttribute('aria-label', 'View original lesson');
           } else {
-            this.speech?.deactivate();
-            root.getElementById('translation').replaceChildren();
-            this.notify('Selected ' + optText + '. Choose Translate to translate the lesson.');
+            btnLabel.textContent = 'Translate into ' + displayName;
+            btn?.setAttribute('aria-label', 'Translate lesson');
+          }
+        }
+        const skipBtn = root.getElementById('skip-to-content');
+        const currentDisplay = root.getElementById('current-language');
+        if (lang === 'en') {
+          if (currentDisplay) currentDisplay.textContent = 'Viewing original English lesson';
+          if (userInitiated) {
+            this.translations.set('en', this.source);
+            window.InkluReadingActions?.renderTranslation(this, 'en');
+          }
+        } else {
+          if (this.translations.has(lang)) {
+            if (currentDisplay) currentDisplay.textContent = 'Translation ready: ' + displayName;
+            if (userInitiated) window.InkluReadingActions?.renderTranslation(this, lang);
+          } else {
+            if (skipBtn) skipBtn.hidden = true;
+            if (currentDisplay) currentDisplay.textContent = 'Selected language: ' + displayName;
+            if (userInitiated) {
+              this.speech?.deactivate();
+              const container = root.getElementById('translation');
+              container.replaceChildren();
+              if (this.requests.has('translate')) {
+                const loadingCard = document.createElement('li');
+                loadingCard.className = 'passage passage-loading';
+                loadingCard.setAttribute('role', 'status');
+                loadingCard.innerHTML = `
+                  <div class="loading-spinner" aria-hidden="true">
+                    <svg class="spin-icon" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><circle cx="12" cy="12" r="10" stroke-opacity="0.25"/><path d="M12 2a10 10 0 0 1 10 10"/></svg>
+                  </div>
+                  <h4 class="loading-title">Translating lesson into ${displayName}</h4>
+                  <p class="loading-desc">Translating with Addis AI. Long lessons may take a few minutes. Please wait…</p>`;
+                container.append(loadingCard);
+              } else {
+                const readyCard = document.createElement('div');
+                readyCard.className = 'translation-ready-card';
+                readyCard.innerHTML = `
+                  <div class="ready-icon" aria-hidden="true">
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 8l6 6"/><path d="M4 14l6-6 2-3"/><path d="M2 5h12"/><path d="M7 2h1"/><path d="M22 22l-5-10-5 10"/><path d="M14 18h6"/></svg>
+                  </div>
+                  <h4 class="ready-title">Ready to translate</h4>
+                  <p class="ready-desc">Click "Translate into ${displayName}" above to translate the lesson using Addis AI.</p>`;
+                container.append(readyCard);
+              }
+              this.notify('Selected ' + displayName + '. Choose Translate to translate the lesson.');
+            }
           }
         }
       }
@@ -263,6 +344,8 @@
           JSON.stringify(images) !== JSON.stringify(this.images))) {
         this.clearReading('The lesson changed. Choose an action for the new lesson.');
       }
+      this.extracted = extracted;
+      this.sections = extracted?.sections ?? [];
       this.source = source;
       this.images = images;
       this.previewLesson = lesson;
@@ -278,6 +361,8 @@
       if (root) {
         const controls = root.getElementById('translation-controls');
         if (controls) controls.hidden = true;
+        const skipBtn = root.getElementById('skip-to-content');
+        if (skipBtn) skipBtn.hidden = true;
       }
       if (root.getElementById('reading').contains(root.activeElement)) {
         root.querySelector('.actions [aria-pressed="true"]')?.focus();
@@ -347,6 +432,11 @@
         return;
       }
       if (action === 'translate') {
+        if (this.targetLanguage === 'en') {
+          this.translations.set('en', this.source);
+          window.InkluReadingActions.renderTranslation(this, 'en');
+          return;
+        }
         if (this.requests.has('translate')) {
           reading.setAttribute('aria-busy', 'true');
           this.notify(window.InkluReadingActions.loadingMessage('translate', this.targetLanguage));
@@ -357,7 +447,24 @@
           this.notify('', false);
           return;
         }
-        window.InkluReadingActions.requestText(this, 'translate', this.targetLanguage, this.sourceLanguage);
+        // Never start translation automatically when opening Translate mode.
+        // Show the ready state and wait for the learner to activate the Translate button.
+        this.speech?.deactivate();
+        const container = root.getElementById('translation');
+        container.replaceChildren();
+        const skipBtn = root.getElementById('skip-to-content');
+        if (skipBtn) skipBtn.hidden = true;
+        const displayName = window.InkluReadingActions?.LANGUAGE_NAMES[this.targetLanguage] || this.targetLanguage;
+        const readyCard = document.createElement('div');
+        readyCard.className = 'translation-ready-card';
+        readyCard.innerHTML = `
+          <div class="ready-icon" aria-hidden="true">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 8l6 6"/><path d="M4 14l6-6 2-3"/><path d="M2 5h12"/><path d="M7 2h1"/><path d="M22 22l-5-10-5 10"/><path d="M14 18h6"/></svg>
+          </div>
+          <h4 class="ready-title">Ready to translate</h4>
+          <p class="ready-desc">Select your language and choose "Translate into ${displayName}" above to begin.</p>`;
+        container.append(readyCard);
+        this.notify('Selected ' + displayName + '. Choose Translate to translate the lesson.');
         return;
       }
       if (this.requests.has(action)) {

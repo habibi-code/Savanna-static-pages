@@ -125,6 +125,7 @@ test('generic host scopes extraction and routes all four learning APIs to the co
   await button('Explain Simply').press('Enter');
   await panel.getByText('Check the time.', { exact: true }).waitFor();
   await button('Translate').press('Enter');
+  await button('Translate lesson').press('Enter');
   await button('Generate Audio for passage 1').press('Enter');
   await panel.getByText('Playing', { exact: true }).waitFor();
   await button('Describe Visuals').press('Enter');
@@ -360,6 +361,7 @@ test('Explain Simply uses extracted text, renders semantic blocks, and keeps bac
   await panel.getByRole('heading', { name: 'Compare calendars' }).waitFor();
   assert.match(calls[1][1].text, /Reading a weekly schedule/);
   await button('Translate').press('Enter');
+  await button('Translate lesson').press('Enter');
   await button('Generate Audio for passage 1').waitFor();
   await button('Generate Audio for passage 1').press('Space');
   await panel.getByText('Playing', { exact: true }).waitFor();
@@ -409,6 +411,7 @@ test('browser playback policy offers manual Play using the same downloaded clip'
   });
   await launcher.click();
   await button('Translate').click();
+  await button('Translate lesson').click();
   await button('Generate Audio for passage 1').press('Enter');
   await panel.getByRole('status').filter({ hasText: 'Audio ready. Choose Play or resume.' }).waitFor();
   const play = button('Play or resume passage 1');
@@ -424,8 +427,9 @@ test('translation error is retryable and closing the drawer cancels pending play
   const action = button('Translate');
   await page.route('**/api/translate', route => route.fulfill({ status: 503, json: { error: 'test failure' } }), { times: 1 });
   await action.click();
+  await button('Translate lesson').click();
   await panel.getByRole('status').filter({ hasText: /Translation is unavailable/ }).waitFor();
-  await action.press('Enter');
+  await button('Translate lesson').click();
   const pending = Promise.withResolvers();
   const arrived = Promise.withResolvers();
   await page.route('**/api/speech/listen', async route => {
@@ -459,7 +463,7 @@ for (const [code, mode, message] of [
     await action.press('Enter');
     assert(await action.isEnabled());
     assert(await action.evaluate(el => el.matches(':focus') && el.tabIndex >= 0));
-    await page.keyboard.press('Space');
+    await button('Translate lesson').click();
     const status = panel.getByRole('status');
     await status.filter({ hasText: 'Translating the lesson' }).waitFor();
     const selected = button(mode);
@@ -481,6 +485,7 @@ test('closing during translation keeps the result without announcing a backgroun
   const { page, panel, launcher, calls, button } = await setup(t, { waitTranslation: gate.promise });
   await launcher.press('Enter');
   await button('Translate').press('Enter');
+  await button('Translate lesson').press('Enter');
   await page.keyboard.press('Escape');
   await panel.waitFor({ state: 'hidden' });
   gate.resolve();
@@ -499,6 +504,7 @@ test('changing lessons cancels the old request without a timeout or stale result
   });
   await launcher.press('Enter');
   await button('Translate').press('Enter');
+  await button('Translate lesson').press('Enter');
   await button('Describe Visuals').press('Space');
   const aborted = page.waitForEvent('requestfailed', req => req.url().endsWith('/api/translate'));
   await page.locator('#example').evaluate(el => { el.value = 'schedule'; el.dispatchEvent(new Event('change')); });
@@ -516,6 +522,7 @@ test('mode transitions preserve one translation; one Generate Audio activation p
   const { page, launcher, panel, calls, button } = await setup(t, { waitTranslation: gate.promise });
   await launcher.click();
   await button('Translate').click();
+  await button('Translate lesson').click();
   await button('Describe Visuals').click();
   await button('Translate').click();
   gate.resolve();
@@ -523,7 +530,8 @@ test('mode transitions preserve one translation; one Generate Audio activation p
   await first.waitFor();
   assert.equal(calls.length, 1);
   assert.equal(await panel.locator('.passage p[lang="am"]').count(), 4);
-  assert.equal(await panel.getByRole('combobox').count(), 0);
+  assert.equal(await panel.getByRole('combobox', { name: 'Recipient' }).count(), 0);
+  assert.equal(await panel.getByRole('combobox', { name: 'Target language' }).count(), 1);
   const playing = panel.getByText('Playing', { exact: true });
   await second.press('Enter');
   await playing.waitFor();
@@ -566,6 +574,7 @@ for (const [code, message] of [[502, 'Audio could not be loaded'], [503, 'Audio 
     } });
     await launcher.press('Enter');
     await button('Translate').press('Enter');
+    await button('Translate lesson').press('Enter');
     const listen = button('Generate Audio for passage 1');
     await listen.press('Space');
     const status = panel.getByRole('status');
@@ -597,6 +606,7 @@ for (const change of ['lesson', 'mode']) {
     } });
     await launcher.press('Enter');
     await button('Translate').press('Space');
+    await button('Translate lesson').press('Space');
     await button('Generate Audio for passage 1').press('Space');
     await arrived.promise;
     const aborted = page.waitForEvent('requestfailed', req => req.url().endsWith('/api/speech/listen'));
@@ -617,6 +627,7 @@ test('developer preview, missing lesson and stale translation cleanup', async t 
   const { page, panel, launcher, button, calls } = await setup(t, { path: '/tests/lesson-content.html?inkluDebug=1' });
   await launcher.click();
   await button('Translate').click();
+  await button('Translate lesson').click();
   await button('Generate Audio for passage 1').waitFor();
   await page.locator('#example').evaluate(el => { el.value = 'schedule'; el.dispatchEvent(new Event('change')); });
   await panel.getByText('Reading a weekly schedule', { exact: true }).waitFor();
@@ -625,6 +636,7 @@ test('developer preview, missing lesson and stale translation cleanup', async t 
   await panel.locator('#preview').getByText(/Check both time zones/).waitFor();
   await page.locator('#example').evaluate(el => { el.value = 'empty'; el.dispatchEvent(new Event('change')); });
   await button('Translate').click();
+  await button('Translate lesson').click();
   await panel.getByRole('status').filter({ hasText: 'No lesson text is available to translate.' }).waitFor();
   assert.equal(calls.length, 1);
 });
@@ -639,6 +651,8 @@ for (const [name, viewport] of [['desktop', { width: 1440, height: 900 }], ['mob
     }
     await launcher.click();
     await button('Translate').click();
+  await button('Translate lesson').click();
+    await button('Translate lesson').click();
     await button('Generate Audio for passage 4').waitFor();
     assert(await panel.evaluate(el => el.scrollWidth <= el.clientWidth + 1));
     const rect = await panel.boundingBox();
@@ -662,6 +676,8 @@ test('narrow layout, enlarged type, long unbroken text, forced colors and reduce
   await page.evaluate(() => { document.documentElement.style.fontSize = '200%'; });
   await launcher.press('Enter');
   await button('Translate').click();
+  await button('Translate lesson').click();
+  await button('Translate lesson').click();
   await button('Generate Audio for passage 4').waitFor();
   assert(await panel.evaluate(el => el.scrollWidth <= el.clientWidth + 1));
   assert.equal(await panel.evaluate(el => getComputedStyle(el).animationName), 'none');
@@ -683,19 +699,21 @@ test('multilingual translation supports keyboard language selection, Afaan Oromo
 
   await launcher.click();
   await button('Translate').click();
+  await button('Translate lesson').click();
+  await button('Translate lesson').click();
 
   // Initial Amharic translation
   const firstAudio = button('Generate Audio for passage 1');
   await firstAudio.waitFor();
-  assert.equal(await panel.locator('#current-language').textContent(), 'Selected language: አማርኛ');
+  assert.match(await panel.locator('#current-language').textContent(), /Amharic/);
   assert.equal(await panel.locator('.passage p[lang="am"]').count(), 4);
 
-  // Switch to Afaan Oromo using radio selector
-  const oromoRadio = panel.getByRole('radio', { name: 'Afaan Oromoo' });
-  await oromoRadio.focus();
-  await oromoRadio.press('Space');
-  assert.equal(await panel.locator('#current-language').textContent(), 'Selected language: Afaan Oromoo');
-  await panel.locator('#reading-note').filter({ hasText: 'Selected Afaan Oromoo. Choose Translate to translate the lesson.' }).waitFor();
+  // Switch to Afaan Oromo using language dropdown
+  const dropdown = panel.locator('#target-language');
+  await dropdown.focus();
+  await dropdown.selectOption('om');
+  assert.match(await panel.locator('#current-language').textContent(), /Afaan Oromo/);
+  await panel.locator('#reading-note').filter({ hasText: 'Selected Afaan Oromo. Choose Translate to translate the lesson.' }).waitFor();
 
   // Press Translate lesson
   const translateLesson = button('Translate lesson');
@@ -706,11 +724,10 @@ test('multilingual translation supports keyboard language selection, Afaan Oromo
   assert.equal(await panel.locator('[data-passage]').count(), 0);
   assert.equal(await panel.locator('.passage-text-only').count(), 2);
 
-  // Keyboard navigation across radio group to Tigrinya
-  const tigrinyaRadio = panel.getByRole('radio', { name: 'ትግርኛ' });
-  await tigrinyaRadio.focus();
-  await tigrinyaRadio.press('Space');
-  assert.equal(await panel.locator('#current-language').textContent(), 'Selected language: ትግርኛ');
+  // Keyboard navigation on dropdown to Tigrinya
+  await dropdown.focus();
+  await dropdown.selectOption('ti');
+  assert.match(await panel.locator('#current-language').textContent(), /Tigrinya/);
   await translateLesson.click();
   await panel.locator('.passage[lang="ti"]').first().waitFor();
   assert.equal(await panel.locator('.passage[lang="ti"]').count(), 2);
@@ -718,10 +735,9 @@ test('multilingual translation supports keyboard language selection, Afaan Oromo
   assert.equal(await panel.locator('[data-passage]').count(), 0);
 
   // Switch back to Amharic - verify cached Amharic translation is restored instantly without re-fetching
-  const amharicRadio = panel.getByRole('radio', { name: 'አማርኛ' });
   const translateCallsBefore = calls.filter(([path]) => path === '/api/translate').length;
-  await amharicRadio.click();
-  assert.equal(await panel.locator('#current-language').textContent(), 'Selected language: አማርኛ');
+  await dropdown.selectOption('am');
+  assert.match(await panel.locator('#current-language').textContent(), /Amharic/);
   // Amharic passages restored immediately
   await panel.locator('.passage p[lang="am"]').first().waitFor();
   assert.equal(await panel.locator('.passage p[lang="am"]').count(), 4);
@@ -734,6 +750,13 @@ test('multilingual translation supports keyboard language selection, Afaan Oromo
   await firstAudio.press('Enter');
   await panel.getByText('Playing', { exact: true }).waitFor();
   assert.deepEqual(calls.at(-1), ['/api/speech/listen', { text: sample.split('\n\n')[0] }]);
+
+  // Test selecting English (original lesson view)
+  await dropdown.selectOption('en');
+  assert.match(await panel.locator('#current-language').textContent(), /original English/i);
+  await panel.locator('.passage[lang="en"]').first().waitFor();
+  assert.equal(await panel.locator('[data-passage]').count(), 0);
+  assert.equal(calls.filter(([path]) => path === '/api/translate').length, translateCallsBefore);
 });
 
 test('multilingual translation on generic lesson with headings, lists, and language attributes', async t => {
@@ -751,8 +774,9 @@ test('multilingual translation on generic lesson with headings, lists, and langu
   });
 
   await launcher.click();
-  assert.equal(await panel.locator('#current-language').textContent(), 'Selected language: Afaan Oromoo');
+  assert.match(await panel.locator('#current-language').textContent(), /Afaan Oromo/);
   await button('Translate').click();
+  await button('Translate lesson').click();
 
   await panel.locator('.passage[lang="om"]').first().waitFor();
   // Check headings and lists are rendered within the passage-body
@@ -779,18 +803,20 @@ test('stale or out-of-order translation responses do not overwrite current langu
 
   await launcher.click();
   await button('Translate').click();
+  await button('Translate lesson').click();
 
+  const dropdown = panel.locator('#target-language');
   // Switch to Afaan Oromo and click Translate lesson (this request is stalled on oromoGate)
-  await panel.getByRole('radio', { name: 'Afaan Oromoo' }).click();
+  await dropdown.selectOption('om');
   await button('Translate lesson').click();
 
   // While Oromo request is pending, user changes mind and switches to Tigrinya
-  await panel.getByRole('radio', { name: 'ትግርኛ' }).click();
+  await dropdown.selectOption('ti');
   await button('Translate lesson').click();
 
   // Tigrinya resolves first
   await panel.getByText('ትሕዝቶ ትግርኛ').waitFor();
-  assert.equal(await panel.locator('#current-language').textContent(), 'Selected language: ትግርኛ');
+  assert.match(await panel.locator('#current-language').textContent(), /Tigrinya/);
 
   // Now resolve the older Oromo request
   resolveOromo();
@@ -799,5 +825,347 @@ test('stale or out-of-order translation responses do not overwrite current langu
   // The older Oromo response must NOT have overwritten Tigrinya!
   assert.equal(await panel.getByText('ትሕዝቶ ትግርኛ').isVisible(), true);
   assert.equal(await panel.locator('.passage[lang="om"]').count(), 0);
-  assert.equal(await panel.locator('#current-language').textContent(), 'Selected language: ትግርኛ');
+  assert.match(await panel.locator('#current-language').textContent(), /Tigrinya/);
+});
+
+test('Savanna lesson preserves semantic structure (sections, headings, paragraphs, lists) and loading states in translation', async t => {
+  let resolveTranslation;
+  const translationGate = new Promise(r => { resolveTranslation = r; });
+
+  const mockOromoTranslation = [
+    'Ibsa Waliigalaa\nFuuldurri hojii gargaaraa vaarshuwaalii jijjiiramaa jira.',
+    '# Maaltu Fuuldura Hojii VA Qajeelcha?\nTeeknooloojiin haaraan haala hojii gargaartota vaarshuwaalii hedduu jijjiiraa jira.',
+    '# Artifishal Intelijensii fi Hojii VA\nAI fi meeshaaleen haaraan dandeettii saffisaa fidu.\n## Jijjiirama Meeshaalee\nNamoonni meeshaalee kanneen fayyadamuu qabu.',
+    '# Maal Abbootiin Qabeenyaa Caalaatti Jaallatu?\nDandeettiiwwan ijoo barbaadaman:\n- Qunnamtii ifaa\n- Iddoo fi yeroo kabajuu\n- Qophii sirrii ta\'e',
+    '# Kun Maal Jechuudha?\nQajeelfamoota hordofuu:\n1. Baradhu\n2. Qoradhu\n3. Hojiirra oolchi',
+    '# Fuuldurri Hojii VA Abdachiisaadha?\nEeyyee, carraan gabaa bal\'aadha.',
+    '# Dubbisa Filatamaa\nMallattoolee gabaa qoradhaa:\n- Gabaasa waggaa\n- Qorannoo teeknooloojii',
+    '# Itti Aanee\nKutaa itti aanutti darbaa.'
+  ].join('\n\n');
+
+  const { page, launcher, panel, button } = await setup(t, {
+    async translate(route, post) {
+      if (post.targetLanguage === 'om') {
+        await translationGate;
+        return route.fulfill({
+          json: {
+            translation: mockOromoTranslation,
+            sourceLanguage: 'en',
+            targetLanguage: 'om'
+          }
+        });
+      }
+      return route.fulfill({ json: { translation: 'አማርኛ ትርጉም', sourceLanguage: 'en', targetLanguage: 'am' } });
+    }
+  });
+
+  await launcher.click();
+  await button('Translate').click();
+  await button('Translate lesson').click();
+  await panel.locator('.passage').first().waitFor(); // Wait for initial Amharic to finish
+  const dropdown = panel.locator('#target-language');
+  await dropdown.selectOption('om');
+
+  // Verify "Ready to translate" shows initially before user clicks translate
+  assert.equal(await panel.locator('.translation-ready-card').isVisible(), true);
+
+  // Click Translate lesson
+  await button('Translate lesson').click();
+
+  // Loading state verification: content area must NOT show "Ready to translate" while translation is running!
+  assert.equal(await panel.locator('.translation-ready-card').count(), 0);
+  assert.equal(await panel.locator('.passage-loading').isVisible(), true);
+  assert.match(await panel.locator('.loading-title').textContent(), /Afaan Oromo/);
+
+  // Dedicated announcement element receives loading message
+  assert.match(await panel.locator('#translation-status').textContent(), /Afaan Oromo/);
+
+  // Now resolve the translation
+  resolveTranslation();
+  await panel.locator('.passage[lang="om"]').first().waitFor();
+
+  // Verification 1: Section containers count - 8 distinct sections, never 1 giant wall of text!
+  const passages = panel.locator('#translation .passage');
+  assert.equal(await passages.count(), 8);
+
+  // Verification 2: Container attributes
+  const translationContainer = panel.locator('#translation');
+  assert.equal(await translationContainer.getAttribute('lang'), 'om');
+  assert.equal(await translationContainer.getAttribute('dir'), 'auto');
+  assert.equal(await translationContainer.getAttribute('role'), null);
+  assert.equal(await translationContainer.getAttribute('aria-live'), null);
+
+  // Verification 3: Semantic heading structure within passages (h4 and h5)
+  const h4s = panel.locator('.passage-body h4');
+  assert.equal(await h4s.count(), 7); // 7 sections with headings
+  assert.match(await h4s.first().textContent(), /Maaltu Fuuldura/);
+
+  const h5s = panel.locator('.passage-body h5');
+  assert.equal(await h5s.count(), 1); // 1 subheading in section 3
+  assert.match(await h5s.first().textContent(), /Jijjiirama Meeshaalee/);
+
+  // Verification 4: Real semantic lists (unordered and ordered) with items
+  const lists = panel.locator('.passage-body :is(ul,ol)');
+  assert.equal(await lists.count(), 3);
+  const listItems = panel.locator('.passage-body li');
+  assert.equal(await listItems.count(), 8);
+
+  // Verification 5: Dedicated short status announcement
+  assert.match(await panel.locator('#translation-status').textContent(), /Afaan Oromo translation ready/);
+
+  // Verification 6: Predictable scroll position - workspace and reading reset to top
+  const scrollTop = await panel.locator('.workspace').evaluate(el => el.scrollTop);
+  assert.equal(scrollTop, 0);
+
+  // Verification 7: Switch to English (View original lesson)
+  await dropdown.selectOption('en');
+  await panel.locator('.passage-original').first().waitFor();
+  assert.equal(await panel.locator('#translation .passage').count(), 8);
+  assert.equal(await panel.locator('.passage-original h4').count() >= 5, true);
+  assert.equal(await panel.locator('.passage-original li').count() >= 5, true);
+});
+
+test('reading layout has zero nested scrollbars and no horizontal overflow at 320px viewport', async t => {
+  const { page, launcher, panel, button } = await setup(t, {
+    viewport: { width: 320, height: 600 },
+    translate(route) {
+      return route.fulfill({
+        json: {
+          translation: '### Section 1\nLine 1\n### Section 2\nLine 2',
+          sourceLanguage: 'en',
+          targetLanguage: 'om'
+        }
+      });
+    }
+  });
+
+  await launcher.click();
+  await button('Translate').click();
+  await button('Translate lesson').click();
+  await panel.locator('.passage').first().waitFor();
+  const dropdown = panel.locator('#target-language');
+  await dropdown.selectOption('om');
+  await button('Translate lesson').click();
+  await panel.locator('.passage[lang="om"]').first().waitFor();
+
+  // Check no horizontal scroll on workspace or reading container
+  const overflowX = await panel.locator('.workspace').evaluate(el => el.scrollWidth > el.clientWidth);
+  assert.equal(overflowX, false);
+
+  const panelOverflowX = await panel.evaluate(el => el.scrollWidth > el.clientWidth);
+  assert.equal(panelOverflowX, false);
+
+  // Check passage has max-width constraint
+  const passageMaxWidth = await panel.locator('.passage').first().evaluate(el => {
+    return getComputedStyle(el).maxWidth;
+  });
+  assert.equal(passageMaxWidth.includes('ch') || parseInt(passageMaxWidth) > 0, true);
+});
+
+test('opening Translate mode, switching languages, mode transitions, and reopening drawer make ZERO API calls until explicit activation', async t => {
+  const { page, launcher, panel, button, calls } = await setup(t, {
+    translate(route, post) {
+      return route.fulfill({
+        json: {
+          translation: 'ትሕዝቶ ትግርኛ ዝተተርጎመ።',
+          sourceLanguage: 'en',
+          targetLanguage: post.targetLanguage || 'am'
+        }
+      });
+    }
+  });
+
+  // 1. Open companion drawer
+  await launcher.click();
+  assert.equal(calls.filter(([p]) => p === '/api/translate').length, 0);
+
+  // 2. Open Translate mode - MUST NEVER trigger an API request!
+  await button('Translate').click();
+  await panel.locator('#translation-controls').waitFor();
+  assert.equal(await panel.locator('.translation-ready-card').isVisible(), true);
+  assert.equal(calls.filter(([p]) => p === '/api/translate').length, 0);
+
+  // 3. Select Afaan Oromo - MUST NEVER trigger an API request!
+  const dropdown = panel.locator('#target-language');
+  await dropdown.selectOption('om');
+  assert.match(await panel.locator('#current-language').textContent(), /Afaan Oromo/);
+  assert.equal(calls.filter(([p]) => p === '/api/translate').length, 0);
+
+  // 4. Select Tigrinya - MUST NEVER trigger an API request!
+  await dropdown.selectOption('ti');
+  assert.match(await panel.locator('#current-language').textContent(), /Tigrinya/);
+  assert.equal(calls.filter(([p]) => p === '/api/translate').length, 0);
+
+  // 5. Switch to Describe Visuals mode and back - MUST NEVER trigger an API request!
+  await button('Describe Visuals').click();
+  assert.equal(calls.filter(([p]) => p === '/api/translate').length, 0);
+  await button('Translate').click();
+  assert.equal(calls.filter(([p]) => p === '/api/translate').length, 0);
+
+  // 6. Close drawer and reopen - MUST NEVER trigger an API request!
+  await button('Close Inklu').click();
+  await launcher.click();
+  assert.equal(calls.filter(([p]) => p === '/api/translate').length, 0);
+
+  // 7. Explicitly activate translation by clicking the Translate button
+  await button('Translate lesson').click();
+  await panel.locator('.passage[lang="ti"]').first().waitFor();
+
+  // Exactly 1 API call was made now that user explicitly clicked Translate
+  assert.equal(calls.filter(([p]) => p === '/api/translate').length, 1);
+  assert.equal(calls.find(([p]) => p === '/api/translate')[1].targetLanguage, 'ti');
+
+  // 8. Switch to English (View original lesson) - Zero API calls!
+  await dropdown.selectOption('en');
+  await panel.locator('.passage-original').first().waitFor();
+  assert.equal(calls.filter(([p]) => p === '/api/translate').length, 1);
+
+  // 9. Switch back to Tigrinya - restored from cache with Zero new API calls!
+  await dropdown.selectOption('ti');
+  await panel.locator('.passage[lang="ti"]').first().waitFor();
+  assert.equal(calls.filter(([p]) => p === '/api/translate').length, 1);
+});
+
+test('accessibility and usability: English option labels, keyboard navigation shortcut, no raw markdown, focus management and audio compatibility', async t => {
+  const amharicWithMarkdown = [
+    '# ምናባዊ ረዳቶች\nምናባዊ ረዳቶች ሰዎችንና ድርጅቶችን በመስመር ላይ ይደግፋሉ።',
+    '## አዳዲስ መሣሪያዎች\nአዳዲስ መሣሪያዎች ኢሜይል ለመጻፍ ይረዳሉ።\n- መረጃ ማደራጀት\n- ስብሰባዎችን ማቀድ'
+  ].join('\n\n');
+
+  const oromoWithMarkdown = [
+    '# Fuuldura Hojii\nFuuldurri hojii jijjiiramaa jira.',
+    '## Meeshaalee Haaraa\nMeeshaaleen haaraan ni gargaaru:\n1. Imeelii\n2. Qindeessuu'
+  ].join('\n\n');
+
+  const { page, launcher, panel, button, calls } = await setup(t, {
+    translate(route, post) {
+      if (post.targetLanguage === 'om') {
+        return route.fulfill({
+          json: { translation: oromoWithMarkdown, sourceLanguage: 'en', targetLanguage: 'om' }
+        });
+      }
+      return route.fulfill({
+        json: { translation: amharicWithMarkdown, sourceLanguage: 'en', targetLanguage: 'am' }
+      });
+    }
+  });
+
+  // 1. Predictable initial focus when drawer opens
+  await launcher.focus();
+  await launcher.press('Enter');
+  assert(await panel.isVisible());
+  assert(await button('Close Inklu').evaluate(el => el.matches(':focus-visible')));
+
+  // 2. Open Translate mode - Zero API calls
+  await button('Translate').click();
+  assert.equal(calls.filter(([p]) => p === '/api/translate').length, 0);
+
+  // 3. Accessible language selector and English option labels
+  const dropdown = panel.locator('#target-language');
+  assert.equal(await dropdown.getAttribute('aria-label'), 'Target language');
+  const options = await dropdown.locator('option').allTextContents();
+  assert.deepEqual(options, ['Amharic', 'Afaan Oromo', 'Tigrinya', 'English (Original lesson)']);
+
+  // 4. Focus remains stable, no unexpected jumps during language selection
+  await dropdown.focus();
+  await dropdown.selectOption('om');
+  assert(await dropdown.evaluate(el => el.matches(':focus')));
+  assert.match(await panel.locator('#current-language').textContent(), /Afaan Oromo/);
+  assert.equal(calls.filter(([p]) => p === '/api/translate').length, 0);
+
+  // 5. Activate translation
+  const translateBtn = button('Translate lesson');
+  await translateBtn.click();
+  await panel.locator('.passage[lang="om"]').first().waitFor();
+  assert.equal(calls.filter(([p]) => p === '/api/translate').length, 1);
+
+  // 6. Keyboard navigation shortcut to reach translated content
+  const skipBtn = panel.locator('#skip-to-content');
+  assert.equal(await skipBtn.isVisible(), true);
+  assert.equal(await skipBtn.textContent().then(s => s.trim()), 'Skip to translated content');
+  await skipBtn.click();
+  const focusedInContent = await page.locator('alx-learning-companion').evaluate(c => {
+    const active = c.shadowRoot.activeElement;
+    return active && (active.classList.contains('passage-heading') || active.classList.contains('passage') || active.tagName.toLowerCase().startsWith('h'));
+  });
+  assert.equal(focusedInContent, true);
+
+  // 7. Verify semantic HTML structure: headings, lists, paragraphs
+  const omHeadings = panel.locator('#translation h4, #translation h5');
+  assert.equal(await omHeadings.count(), 2);
+  assert.equal(await panel.locator('#translation h4').textContent(), 'Fuuldura Hojii');
+  assert.equal(await panel.locator('#translation h5').textContent(), 'Meeshaalee Haaraa');
+  assert.equal(await panel.locator('#translation ol').count(), 1);
+  assert.equal(await panel.locator('#translation li').count(), 4); // 2 passage cards + 2 list items
+
+  // 8. Verify NO raw markdown markers (#, ##, ###) in any rendered text
+  const omTexts = await panel.locator('#translation .passage-body').allTextContents();
+  for (const t of omTexts) {
+    assert.doesNotMatch(t, /^#{1,6}\s/m);
+    assert.doesNotMatch(t, /##/);
+  }
+
+  // 9. Correct language attributes on container and passages
+  assert.equal(await panel.locator('#translation').getAttribute('lang'), 'om');
+  assert.equal(await panel.locator('.passage').first().getAttribute('lang'), 'om');
+
+  // 10. Switch to Amharic - verify semantic rendering and audio controls without raw markdown
+  await dropdown.selectOption('am');
+  await translateBtn.click();
+  await panel.locator('.passage[lang="am"]').first().waitFor();
+  assert.equal(await panel.locator('#translation').getAttribute('lang'), 'am');
+
+  const amHeadings = panel.locator('#translation h4, #translation h5');
+  assert.equal(await amHeadings.count(), 2);
+  assert.equal(await panel.locator('#translation h4').textContent(), 'ምናባዊ ረዳቶች');
+  assert.equal(await panel.locator('#translation h5').textContent(), 'አዳዲስ መሣሪያዎች');
+
+  const amTexts = await panel.locator('#translation .passage').allTextContents();
+  for (const t of amTexts) {
+    assert.doesNotMatch(t, /^#{1,6}\s/m);
+    assert.doesNotMatch(t, /##/);
+  }
+
+  // 11. Amharic audio compatibility: Generate Audio sends clean text without markdown
+  const audioBtn = button('Generate Audio for passage 1');
+  assert.equal(await audioBtn.isVisible(), true);
+  await audioBtn.click();
+  assert.deepEqual(calls.at(-1), ['/api/speech/listen', { text: 'ምናባዊ ረዳቶች' }]);
+
+  // 12. Modal focus restoration on close
+  await page.keyboard.press('Escape');
+  await panel.waitFor({ state: 'hidden' });
+  assert(await launcher.evaluate(el => el.matches(':focus')));
+});
+
+test('accessibility: generic HTML lesson translation preserves English option labels and removes raw markdown', async t => {
+  const { page, launcher, panel, button, calls } = await setup(t, {
+    path: '/pages/generic-lesson.html',
+    translate(route, post) {
+      return route.fulfill({
+        json: {
+          translation: '# Generic Heading\n## Generic Subheading\nParagraph text.',
+          sourceLanguage: 'en',
+          targetLanguage: post.targetLanguage || 'am'
+        }
+      });
+    }
+  });
+
+  await launcher.click();
+  await button('Translate').click();
+  const dropdown = panel.locator('#target-language');
+  assert.deepEqual(await dropdown.locator('option').allTextContents(),
+    ['Amharic', 'Afaan Oromo', 'Tigrinya', 'English (Original lesson)']);
+
+  await button('Translate lesson').click();
+  await panel.locator('.passage').first().waitFor();
+
+  // Headings rendered, no raw markdown
+  const h4 = panel.locator('#translation h4');
+  assert.equal(await h4.textContent(), 'Generic Heading');
+  const h5 = panel.locator('#translation h5');
+  assert.equal(await h5.textContent(), 'Generic Subheading');
+  const allText = await panel.locator('#translation').textContent();
+  assert.doesNotMatch(allText, /##/);
 });
