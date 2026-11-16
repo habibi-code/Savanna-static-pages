@@ -73,6 +73,82 @@
     output.append(copy);
   }
 
+  function extractStructuredSections(content, title = '') {
+    const sections = [];
+    let current = {
+      title: title || 'Overview',
+      level: 2,
+      blocks: []
+    };
+    sections.push(current);
+
+    function walk(node) {
+      if (node.nodeType === Node.ELEMENT_NODE) {
+        const tag = node.tagName.toLowerCase();
+        if (/^h[1-4]$/.test(tag)) {
+          const text = node.textContent.replace(/\s+/gu, ' ').trim();
+          if (text) {
+            current = {
+              title: text,
+              level: Math.max(3, parseInt(tag[1], 10)),
+              blocks: [{ tag, type: 'heading', level: Math.max(3, parseInt(tag[1], 10)), text }]
+            };
+            sections.push(current);
+            return;
+          }
+        }
+        if (/^h[5-6]$/.test(tag)) {
+          const text = node.textContent.replace(/\s+/gu, ' ').trim();
+          if (text) {
+            current.blocks.push({ tag, type: 'subheading', level: Math.max(4, parseInt(tag[1], 10)), text });
+            return;
+          }
+        }
+        if (tag === 'p') {
+          const text = node.textContent.replace(/\s+/gu, ' ').trim();
+          if (text) {
+            current.blocks.push({ tag: 'p', type: 'paragraph', text });
+            return;
+          }
+        }
+        if (tag === 'ul' || tag === 'ol') {
+          const items = [];
+          for (const li of node.querySelectorAll(':scope > li')) {
+            const text = li.textContent.replace(/\s+/gu, ' ').trim();
+            if (text) items.push(text);
+          }
+          if (items.length) {
+            current.blocks.push({
+              tag,
+              type: 'list',
+              listType: tag,
+              start: tag === 'ol' ? (parseInt(node.getAttribute('start'), 10) || 1) : null,
+              items
+            });
+            return;
+          }
+        }
+        if (tag === 'blockquote') {
+          const text = node.textContent.replace(/\s+/gu, ' ').trim();
+          if (text) {
+            current.blocks.push({ tag: 'blockquote', type: 'blockquote', text });
+            return;
+          }
+        }
+        if (tag === 'figcaption') {
+          const text = node.textContent.replace(/\s+/gu, ' ').trim();
+          if (text) {
+            current.blocks.push({ tag: 'p', type: 'caption', text });
+            return;
+          }
+        }
+      }
+      for (const child of node.childNodes) walk(child);
+    }
+    walk(content.cloneNode(true));
+    return sections.filter(s => s.blocks.length > 0);
+  }
+
   function extractLesson(lesson = document.querySelector(savanna.lesson), host = savanna) {
     const content = document.createDocumentFragment();
     const images = [];
@@ -122,10 +198,11 @@
         .filter(Boolean).map(text => text.replace(/\s+/gu, ' ').trim().slice(0, 380)))].join('\n').slice(0, 1200);
       visuals.push({ asset: asset || null, context: context || 'Lesson image' });
     }
-    return { title, content, visuals, images: images.map(node =>
+    const sections = extractStructuredSections(content, title);
+    return { title, content, visuals, sections, images: images.map(node =>
       node.getAttribute('aria-label')?.trim() || node.getAttribute('alt')?.trim() || 'Image without a description.') };
   }
 
-  window.InkluLessonContent = { extractLesson, hostFor, findLesson };
+  window.InkluLessonContent = { extractLesson, hostFor, findLesson, extractStructuredSections };
   window.SavannaLessonContent = window.InkluLessonContent;
 })();
